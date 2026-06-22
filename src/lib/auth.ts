@@ -17,6 +17,7 @@ import { sendWelcomeEmail } from "./mailer";
 export const auth = betterAuth({
   // Pass the pg Pool directly — Better Auth wraps it in a Kysely PostgresDialect.
   database: auroraPool,
+  secret: process.env.BETTER_AUTH_SECRET,
   emailAndPassword: {
     enabled: true,
     autoSignIn: true,

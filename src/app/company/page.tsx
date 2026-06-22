@@ -1,8 +1,10 @@
 import { redirect } from "next/navigation";
-import { getArenaSession } from "@/lib/arena-auth";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
 import { getCompanyTests, getAllTestsAnalytics } from "@/features/company/actions";
 import CompanyDashboardClient from "./CompanyDashboardClient";
 import type { Metadata } from "next";
+import type { ArenaUser } from "@/types/arena";
 
 export const metadata: Metadata = {
   title: "Company Dashboard — HootHoot",
@@ -10,18 +12,24 @@ export const metadata: Metadata = {
 };
 
 export default async function CompanyPage() {
-  const user = await getArenaSession();
+  const session = await auth.api.getSession({ headers: await headers() }).catch(() => null);
 
-  if (!user) {
+  if (!session?.user) {
     redirect("/arena/auth?role=company&redirect=/company");
   }
-  if (user.role !== "company") {
-    redirect("/arena");
-  }
+
+  const user: ArenaUser = {
+    id: session.user.id,
+    email: session.user.email,
+    name: session.user.name ?? "User",
+    role: "company",
+    avatar_url: session.user.image ?? null,
+    created_at: session.user.createdAt?.toISOString() ?? new Date().toISOString(),
+  };
 
   const [tests, analytics] = await Promise.all([
-    getCompanyTests(),
-    getAllTestsAnalytics(),
+    getCompanyTests(session.user.id),
+    getAllTestsAnalytics(session.user.id),
   ]);
 
   return <CompanyDashboardClient user={user} tests={tests} analytics={analytics} />;

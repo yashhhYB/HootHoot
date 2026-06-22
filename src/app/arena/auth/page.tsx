@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Loader2, Zap, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { authClient } from "@/lib/auth-client";
 
 type Role = "student" | "company";
 type Mode = "signin" | "signup";
@@ -28,8 +29,6 @@ export default function ArenaAuthPage() {
     password: "",
     name: "",
     companyName: "",
-    industry: "",
-    website: "",
   });
 
   const update = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -38,44 +37,50 @@ export default function ArenaAuthPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    try {
-      const payload =
-        mode === "signup"
-          ? {
-              action: "signup",
-              email: form.email,
-              password: form.password,
-              name: form.name,
-              role,
-              companyName: role === "company" ? form.companyName : undefined,
-              industry: role === "company" ? form.industry : undefined,
-              website: role === "company" ? form.website : undefined,
-            }
-          : {
-              action: "signin",
-              email: form.email,
-              password: form.password,
-            };
 
-      const res = await fetch("/api/arena/auth", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
+    const destination = role === "company" ? "/company" : redirect;
 
-      if (!res.ok) {
-        toast.error(data.error || "Authentication failed.");
-        return;
-      }
-
-      toast.success(mode === "signup" ? "Account created!" : "Welcome back!");
-      router.push(role === "company" ? "/company" : redirect);
-      router.refresh();
-    } catch {
-      toast.error("Something went wrong. Please try again.");
-    } finally {
-      setLoading(false);
+    if (mode === "signup") {
+      await authClient.signUp.email(
+        {
+          email: form.email,
+          password: form.password,
+          name: role === "company" && form.companyName
+            ? `${form.name} (${form.companyName})`
+            : form.name,
+        },
+        {
+          onSuccess: () => {
+            toast.success("Account created! Welcome to Hoot-Hoot.");
+            router.push(destination);
+            router.refresh();
+            setLoading(false);
+          },
+          onError: (ctx) => {
+            toast.error(ctx.error.message || "Could not create account.");
+            setLoading(false);
+          },
+        }
+      );
+    } else {
+      await authClient.signIn.email(
+        {
+          email: form.email,
+          password: form.password,
+        },
+        {
+          onSuccess: () => {
+            toast.success("Welcome back!");
+            router.push(destination);
+            router.refresh();
+            setLoading(false);
+          },
+          onError: (ctx) => {
+            toast.error(ctx.error.message || "Invalid email or password.");
+            setLoading(false);
+          },
+        }
+      );
     }
   }
 
@@ -193,40 +198,16 @@ export default function ArenaAuthPage() {
             </div>
 
             {mode === "signup" && role === "company" && (
-              <>
-                <div className="space-y-1.5">
-                  <Label htmlFor="companyName">Company Name</Label>
-                  <Input
-                    id="companyName"
-                    placeholder="Acme Corp"
-                    value={form.companyName}
-                    onChange={update("companyName")}
-                    required
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="industry">
-                    Industry <span className="text-muted-foreground text-xs">(optional)</span>
-                  </Label>
-                  <Input
-                    id="industry"
-                    placeholder="Technology, Finance, etc."
-                    value={form.industry}
-                    onChange={update("industry")}
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="website">
-                    Website <span className="text-muted-foreground text-xs">(optional)</span>
-                  </Label>
-                  <Input
-                    id="website"
-                    placeholder="https://yourcompany.com"
-                    value={form.website}
-                    onChange={update("website")}
-                  />
-                </div>
-              </>
+              <div className="space-y-1.5">
+                <Label htmlFor="companyName">Company Name</Label>
+                <Input
+                  id="companyName"
+                  placeholder="Acme Corp"
+                  value={form.companyName}
+                  onChange={update("companyName")}
+                  required
+                />
+              </div>
             )}
 
             <Button type="submit" className="w-full h-11" disabled={loading}>

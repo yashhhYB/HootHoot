@@ -1,7 +1,8 @@
 "use server";
 
 import { auroraQuery } from "@/lib/db-aurora";
-import { getArenaSession } from "@/lib/arena-auth";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
 import { nanoid } from "nanoid";
 import type {
   ArenaLeaderboardEntry,
@@ -20,8 +21,9 @@ export async function submitPracticeAttempt(params: {
   warningsCount: number;
   isStrictMode: boolean;
 }): Promise<{ attempt: PracticeAttempt | null; error: string | null }> {
-  const user = await getArenaSession();
-  if (!user) return { attempt: null, error: "You must be signed in to save your attempt." };
+  const session = await auth.api.getSession({ headers: await headers() }).catch(() => null);
+  if (!session?.user) return { attempt: null, error: "You must be signed in to save your attempt." };
+  const userId = session.user.id;
 
   const id = nanoid(24);
   const result = await auroraQuery(
@@ -31,7 +33,7 @@ export async function submitPracticeAttempt(params: {
      RETURNING *`,
     [
       id,
-      user.id,
+      userId,
       params.score,
       params.totalQuestions,
       params.timeTakenMs,
@@ -47,17 +49,18 @@ export async function submitPracticeAttempt(params: {
 
 export async function getPracticeLeaderboard(limit = 50): Promise<ArenaLeaderboardEntry[]> {
   // Best attempt per user: highest score, then fastest time
+  // Joins the Better Auth 'user' table (same DB) for the display name
   const result = await auroraQuery(
     `SELECT DISTINCT ON (pa.user_id)
        pa.id,
        pa.user_id,
-       au.name,
-       au.avatar_url,
+       u.name,
+       u.image AS avatar_url,
        pa.score,
        pa.time_taken_ms,
        pa.created_at
      FROM practice_attempts pa
-     JOIN arena_users au ON au.id = pa.user_id
+     JOIN "user" u ON u.id = pa.user_id
      ORDER BY pa.user_id, pa.score DESC, pa.time_taken_ms ASC, pa.created_at DESC
      LIMIT $1`,
     [limit]
@@ -91,15 +94,15 @@ export async function getPracticeLeaderboard(limit = 50): Promise<ArenaLeaderboa
 }
 
 export async function getMyPracticeHistory(limit = 10): Promise<PracticeAttempt[]> {
-  const user = await getArenaSession();
-  if (!user) return [];
+  const session = await auth.api.getSession({ headers: await headers() }).catch(() => null);
+  if (!session?.user) return [];
 
   const result = await auroraQuery(
     `SELECT * FROM practice_attempts
      WHERE user_id = $1
      ORDER BY created_at DESC
      LIMIT $2`,
-    [user.id, limit]
+    [session.user.id, limit]
   );
 
   return result.rows as PracticeAttempt[];

@@ -7,35 +7,11 @@ import { NextResponse } from "next/server";
 import { auroraQuery, withAuroraConnection } from "@/lib/db-aurora";
 
 const MIGRATION_SQL = `
--- ── Role enum for users ───────────────────────────────────────
-CREATE TABLE IF NOT EXISTS arena_users (
-  id            VARCHAR(36)   PRIMARY KEY,
-  email         VARCHAR(255)  NOT NULL UNIQUE,
-  name          VARCHAR(255),
-  password_hash TEXT          NOT NULL,
-  role          VARCHAR(20)   NOT NULL DEFAULT 'student'
-                              CHECK (role IN ('student', 'company')),
-  avatar_url    TEXT,
-  created_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
-  updated_at    TIMESTAMPTZ   NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_arena_users_email  ON arena_users(email);
-CREATE INDEX IF NOT EXISTS idx_arena_users_role   ON arena_users(role);
-
-CREATE TABLE IF NOT EXISTS arena_sessions (
-  id         VARCHAR(64)  PRIMARY KEY,
-  user_id    VARCHAR(36)  NOT NULL REFERENCES arena_users(id) ON DELETE CASCADE,
-  expires_at TIMESTAMPTZ  NOT NULL,
-  created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_arena_sessions_user_id    ON arena_sessions(user_id);
-CREATE INDEX IF NOT EXISTS idx_arena_sessions_expires_at ON arena_sessions(expires_at);
-
+-- ── Companies ─────────────────────────────────────────────────
+-- user_id references Better Auth's "user" table (TEXT id)
 CREATE TABLE IF NOT EXISTS companies (
   id          VARCHAR(36)   PRIMARY KEY,
-  user_id     VARCHAR(36)   NOT NULL UNIQUE REFERENCES arena_users(id) ON DELETE CASCADE,
+  user_id     TEXT          NOT NULL UNIQUE,
   name        VARCHAR(255)  NOT NULL,
   logo_url    TEXT,
   industry    VARCHAR(100),
@@ -48,7 +24,7 @@ CREATE INDEX IF NOT EXISTS idx_companies_user_id ON companies(user_id);
 
 CREATE TABLE IF NOT EXISTS practice_attempts (
   id              VARCHAR(36)  PRIMARY KEY,
-  user_id         VARCHAR(36)  NOT NULL REFERENCES arena_users(id) ON DELETE CASCADE,
+  user_id         TEXT         NOT NULL,
   score           INT          NOT NULL CHECK (score >= 0 AND score <= 10),
   total_questions INT          NOT NULL DEFAULT 10,
   time_taken_ms   INT          NOT NULL CHECK (time_taken_ms >= 0),
@@ -93,7 +69,7 @@ CREATE INDEX IF NOT EXISTS idx_company_tests_invite_code  ON company_tests(invit
 CREATE TABLE IF NOT EXISTS test_sessions (
   id                VARCHAR(36)  PRIMARY KEY,
   test_id           VARCHAR(36)  NOT NULL REFERENCES company_tests(id) ON DELETE CASCADE,
-  user_id           VARCHAR(36)  NOT NULL REFERENCES arena_users(id) ON DELETE CASCADE,
+  user_id           TEXT         NOT NULL,
   score             INT          CHECK (score >= 0),
   total_questions   INT          NOT NULL,
   time_taken_ms     INT          CHECK (time_taken_ms >= 0),
@@ -150,10 +126,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE TRIGGER trg_arena_users_updated_at
-  BEFORE UPDATE ON arena_users
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
 CREATE OR REPLACE TRIGGER trg_companies_updated_at
   BEFORE UPDATE ON companies
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
@@ -204,7 +176,7 @@ export async function GET() {
     const result = await auroraQuery(`
       SELECT table_name FROM information_schema.tables
       WHERE table_schema = 'public'
-      AND table_name IN ('arena_users','companies','practice_attempts','company_tests','test_sessions','warning_logs','arena_questions')
+      AND table_name IN ('companies','practice_attempts','company_tests','test_sessions','warning_logs','arena_questions')
       ORDER BY table_name
     `);
     return NextResponse.json({

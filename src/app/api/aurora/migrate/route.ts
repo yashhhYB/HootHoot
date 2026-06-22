@@ -1,188 +1,67 @@
 /**
  * POST /api/aurora/migrate
- * Runs the Aurora schema migration. Called once during app initialization.
- * Protected by a secret token to prevent unauthorized schema changes.
+ * Runs the full idempotent schema migration against Aurora PostgreSQL.
+ * Call this once after first deploy (or any schema change).
+ * GET /api/aurora/migrate checks which tables exist (useful for debugging).
+ *
+ * In production, POST requires x-migration-secret header === MIGRATION_SECRET.
+ * The schema is auto-applied on startup via instrumentation.ts anyway.
  */
 import { NextResponse } from "next/server";
 import { auroraQuery, withAuroraConnection } from "@/lib/db-aurora";
+import { FULL_SCHEMA_SQL } from "./_schema";
 
-const MIGRATION_SQL = `
--- ── Companies ─────────────────────────────────────────────────
--- user_id references Better Auth's "user" table (TEXT id)
-CREATE TABLE IF NOT EXISTS companies (
-  id          VARCHAR(36)   PRIMARY KEY,
-  user_id     TEXT          NOT NULL UNIQUE,
-  name        VARCHAR(255)  NOT NULL,
-  logo_url    TEXT,
-  industry    VARCHAR(100),
-  website     VARCHAR(255),
-  created_at  TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
-  updated_at  TIMESTAMPTZ   NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_companies_user_id ON companies(user_id);
-
-CREATE TABLE IF NOT EXISTS practice_attempts (
-  id              VARCHAR(36)  PRIMARY KEY,
-  user_id         TEXT         NOT NULL,
-  score           INT          NOT NULL CHECK (score >= 0 AND score <= 10),
-  total_questions INT          NOT NULL DEFAULT 10,
-  time_taken_ms   INT          NOT NULL CHECK (time_taken_ms >= 0),
-  difficulty      VARCHAR(20)  NOT NULL DEFAULT 'mixed',
-  question_log    JSONB        NOT NULL DEFAULT '[]',
-  warnings_count  INT          NOT NULL DEFAULT 0,
-  is_strict_mode  BOOLEAN      NOT NULL DEFAULT FALSE,
-  created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_practice_attempts_user_id    ON practice_attempts(user_id);
-CREATE INDEX IF NOT EXISTS idx_practice_attempts_score      ON practice_attempts(score DESC);
-CREATE INDEX IF NOT EXISTS idx_practice_attempts_created_at ON practice_attempts(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_practice_leaderboard ON practice_attempts(score DESC, time_taken_ms ASC);
-
-CREATE TABLE IF NOT EXISTS company_tests (
-  id                  VARCHAR(36)   PRIMARY KEY,
-  company_id          VARCHAR(36)   NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
-  title               VARCHAR(255)  NOT NULL,
-  description         TEXT,
-  question_config     JSONB         NOT NULL DEFAULT '[]',
-  total_questions     INT           NOT NULL CHECK (total_questions BETWEEN 1 AND 30),
-  time_limit_minutes  INT           NOT NULL DEFAULT 30 CHECK (time_limit_minutes BETWEEN 5 AND 180),
-  require_fullscreen  BOOLEAN       NOT NULL DEFAULT TRUE,
-  require_camera      BOOLEAN       NOT NULL DEFAULT FALSE,
-  max_warnings        INT           NOT NULL DEFAULT 3,
-  allow_tab_switch    BOOLEAN       NOT NULL DEFAULT FALSE,
-  status              VARCHAR(20)   NOT NULL DEFAULT 'draft'
-                                    CHECK (status IN ('draft', 'active', 'closed')),
-  invite_code         VARCHAR(12)   UNIQUE,
-  max_participants    INT,
-  starts_at           TIMESTAMPTZ,
-  ends_at             TIMESTAMPTZ,
-  created_at          TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
-  updated_at          TIMESTAMPTZ   NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_company_tests_company_id   ON company_tests(company_id);
-CREATE INDEX IF NOT EXISTS idx_company_tests_status       ON company_tests(status);
-CREATE INDEX IF NOT EXISTS idx_company_tests_invite_code  ON company_tests(invite_code) WHERE invite_code IS NOT NULL;
-
-CREATE TABLE IF NOT EXISTS test_sessions (
-  id                VARCHAR(36)  PRIMARY KEY,
-  test_id           VARCHAR(36)  NOT NULL REFERENCES company_tests(id) ON DELETE CASCADE,
-  user_id           TEXT         NOT NULL,
-  score             INT          CHECK (score >= 0),
-  total_questions   INT          NOT NULL,
-  time_taken_ms     INT          CHECK (time_taken_ms >= 0),
-  warnings_count    INT          NOT NULL DEFAULT 0,
-  status            VARCHAR(20)  NOT NULL DEFAULT 'in_progress'
-                                  CHECK (status IN ('in_progress', 'completed', 'disqualified', 'abandoned')),
-  question_log      JSONB        NOT NULL DEFAULT '[]',
-  proctor_log       JSONB        NOT NULL DEFAULT '[]',
-  started_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-  completed_at      TIMESTAMPTZ,
-  UNIQUE(test_id, user_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_test_sessions_test_id   ON test_sessions(test_id);
-CREATE INDEX IF NOT EXISTS idx_test_sessions_user_id   ON test_sessions(user_id);
-CREATE INDEX IF NOT EXISTS idx_test_sessions_status    ON test_sessions(status);
-CREATE INDEX IF NOT EXISTS idx_test_sessions_leaderboard ON test_sessions(test_id, score DESC, time_taken_ms ASC)
-  WHERE status = 'completed';
-
-CREATE TABLE IF NOT EXISTS warning_logs (
-  id             SERIAL       PRIMARY KEY,
-  session_id     VARCHAR(36)  NOT NULL,
-  session_type   VARCHAR(20)  NOT NULL CHECK (session_type IN ('practice', 'test')),
-  reason         VARCHAR(50)  NOT NULL,
-  warning_number INT          NOT NULL,
-  s3_image_url   TEXT,
-  metadata       JSONB        NOT NULL DEFAULT '{}',
-  created_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_warning_logs_session ON warning_logs(session_id, session_type);
-CREATE INDEX IF NOT EXISTS idx_warning_logs_created ON warning_logs(created_at DESC);
-
-CREATE TABLE IF NOT EXISTS arena_questions (
-  id          SERIAL        PRIMARY KEY,
-  game_slug   VARCHAR(100)  NOT NULL,
-  difficulty  INT           NOT NULL CHECK (difficulty BETWEEN 1 AND 5),
-  category    VARCHAR(50)   NOT NULL,
-  payload     JSONB         NOT NULL,
-  is_active   BOOLEAN       NOT NULL DEFAULT TRUE,
-  created_at  TIMESTAMPTZ   NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX IF NOT EXISTS idx_arena_questions_game_slug   ON arena_questions(game_slug);
-CREATE INDEX IF NOT EXISTS idx_arena_questions_difficulty  ON arena_questions(difficulty);
-CREATE INDEX IF NOT EXISTS idx_arena_questions_active      ON arena_questions(is_active) WHERE is_active = TRUE;
-CREATE INDEX IF NOT EXISTS idx_arena_questions_slug_diff   ON arena_questions(game_slug, difficulty) WHERE is_active = TRUE;
-
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = NOW();
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE OR REPLACE TRIGGER trg_companies_updated_at
-  BEFORE UPDATE ON companies
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE OR REPLACE TRIGGER trg_company_tests_updated_at
-  BEFORE UPDATE ON company_tests
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE OR REPLACE VIEW test_analytics AS
-SELECT
-  ct.id                                         AS test_id,
-  ct.company_id,
-  ct.title,
-  COUNT(ts.id)                                  AS total_participants,
-  COUNT(ts.id) FILTER (WHERE ts.status = 'completed')     AS completed_count,
-  COUNT(ts.id) FILTER (WHERE ts.status = 'disqualified')  AS disqualified_count,
-  ROUND(AVG(ts.score) FILTER (WHERE ts.status = 'completed'), 2) AS avg_score,
-  MAX(ts.score) FILTER (WHERE ts.status = 'completed')    AS top_score,
-  MIN(ts.score) FILTER (WHERE ts.status = 'completed')    AS min_score,
-  ROUND(AVG(ts.time_taken_ms) FILTER (WHERE ts.status = 'completed') / 1000.0, 1) AS avg_time_seconds,
-  COUNT(ts.id) FILTER (WHERE ts.score >= (ct.total_questions * 0.7) AND ts.status = 'completed') AS pass_count
-FROM company_tests ct
-LEFT JOIN test_sessions ts ON ts.test_id = ct.id
-GROUP BY ct.id, ct.company_id, ct.title, ct.total_questions;
-`;
+const ALL_TABLE_NAMES = [
+  "user", "session", "account", "verification",
+  "game_score", "game_attempt", "poll", "poll_option",
+  "user_streak", "broadcast", "broadcast_recipient", "subscription",
+  "companies", "practice_attempts", "company_tests",
+  "test_sessions", "warning_logs", "arena_questions",
+];
 
 export async function POST(req: Request) {
-  const secret = req.headers.get("x-migration-secret");
-  if (secret !== process.env.MIGRATION_SECRET && process.env.NODE_ENV === "production") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (process.env.NODE_ENV === "production") {
+    const secret = req.headers.get("x-migration-secret");
+    if (secret !== process.env.MIGRATION_SECRET) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
   }
 
   try {
-    // Use withAuroraConnection to run all DDL in a single client transaction
     await withAuroraConnection(async (client) => {
-      await client.query(MIGRATION_SQL);
+      await client.query(FULL_SCHEMA_SQL);
     });
-    return NextResponse.json({ success: true, message: "Aurora schema migrated successfully" });
+
+    const result = await auroraQuery(
+      `SELECT table_name FROM information_schema.tables
+       WHERE table_schema = 'public' AND table_name = ANY($1::text[])
+       ORDER BY table_name`,
+      [ALL_TABLE_NAMES]
+    );
+
+    return NextResponse.json({
+      success: true,
+      message: "Schema migrated successfully",
+      tables: result.rows.map((r: { table_name: string }) => r.table_name),
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    console.error("[Aurora Migration]", message);
+    console.error("[Aurora Migration] Error:", message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 
 export async function GET() {
   try {
-    const result = await auroraQuery(`
-      SELECT table_name FROM information_schema.tables
-      WHERE table_schema = 'public'
-      AND table_name IN ('companies','practice_attempts','company_tests','test_sessions','warning_logs','arena_questions')
-      ORDER BY table_name
-    `);
-    return NextResponse.json({
-      tables: result.rows.map((r: { table_name: string }) => r.table_name),
-      count: result.rows.length,
-    });
+    const result = await auroraQuery(
+      `SELECT table_name FROM information_schema.tables
+       WHERE table_schema = 'public' AND table_name = ANY($1::text[])
+       ORDER BY table_name`,
+      [ALL_TABLE_NAMES]
+    );
+    const found = result.rows.map((r: { table_name: string }) => r.table_name);
+    const missing = ALL_TABLE_NAMES.filter((t) => !found.includes(t));
+    return NextResponse.json({ found, missing, ready: missing.length === 0 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });

@@ -68,29 +68,47 @@ async function run() {
     connectionTimeoutMillis: 10000,
   });
 
-  const sqlFile = join(__dirname, "001-arena-schema.sql");
-  const sql = readFileSync(sqlFile, "utf8");
+  // Determine which SQL files to run
+  const arg = process.argv[2];
+  let sqlFiles;
 
-  const client = await pool.connect();
-  try {
-    console.log("[migration] Running 001-arena-schema.sql ...");
-    await client.query(sql);
-    console.log("[migration] Migration completed successfully.");
-
-    // Verify tables were created
-    const check = await client.query(`
-      SELECT table_name FROM information_schema.tables
-      WHERE table_schema = 'public'
-      ORDER BY table_name
-    `);
-    console.log("[migration] Tables in DB:", check.rows.map(r => r.table_name).join(", "));
-  } catch (err) {
-    console.error("[migration] Migration failed:", err.message);
-    process.exit(1);
-  } finally {
-    client.release();
-    await pool.end();
+  if (arg) {
+    sqlFiles = [arg.startsWith("/") ? arg : join(__dirname, arg)];
+  } else {
+    // Run all numbered *.sql files in order
+    const { readdirSync } = await import("fs");
+    sqlFiles = readdirSync(__dirname)
+      .filter((f) => /^\d+.*\.sql$/.test(f))
+      .sort()
+      .map((f) => join(__dirname, f));
   }
+
+  for (const sqlFile of sqlFiles) {
+    const sql = readFileSync(sqlFile, "utf8");
+    const client = await pool.connect();
+    try {
+      console.log(`[migration] Running ${sqlFile} ...`);
+      await client.query(sql);
+      console.log(`[migration] Done: ${sqlFile}`);
+    } catch (err) {
+      console.error(`[migration] Failed on ${sqlFile}:`, err.message);
+      client.release();
+      await pool.end();
+      process.exit(1);
+    } finally {
+      client.release();
+    }
+  }
+
+  // Verify all tables after migration
+  const verify = await pool.query(`
+    SELECT table_name FROM information_schema.tables
+    WHERE table_schema = 'public'
+    ORDER BY table_name
+  `);
+  console.log("\n[migration] All tables in DB:", verify.rows.map(r => r.table_name).join(", "));
+  console.log("[migration] All migrations completed successfully.");
+  await pool.end();
 }
 
 run();

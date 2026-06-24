@@ -9,8 +9,14 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
-  // Avoid running during local dev (Aurora VPC not reachable from sandbox)
-  if (process.env.VERCEL !== "1" && process.env.RUN_MIGRATION !== "true") return;
+  // The database is a standard connection-string Postgres instance, reachable
+  // from both the sandbox and Vercel. Run the migration whenever we have a
+  // connection string (skip only if explicitly disabled).
+  const hasDb =
+    !!process.env.DATABASE_URL ||
+    !!process.env.POSTGRES_URL ||
+    !!process.env.DATABASE_URL_UNPOOLED;
+  if (!hasDb || process.env.RUN_MIGRATION === "false") return;
 
   try {
     const { withAuroraConnection } = await import("./lib/db-aurora");

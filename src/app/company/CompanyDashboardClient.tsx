@@ -10,7 +10,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { ArenaUser, CompanyTest, TestAnalytics } from "@/types/arena";
 import { updateTestStatus, deleteTest } from "@/features/company/actions";
-import { useSession } from "@/context/SessionContext";
+import { authClient } from "@/lib/auth-client";
 import CreateTestWizard from "./CreateTestWizard";
 import TestResultsView from "./TestResultsView";
 import { useRouter } from "next/navigation";
@@ -26,14 +26,15 @@ type View = "overview" | "create" | "results";
 
 export default function CompanyDashboardClient({ user, tests, analytics }: Props) {
   const router = useRouter();
-  const { signOut } = useSession();
   const [view, setView] = useState<View>("overview");
   const [selectedTestId, setSelectedTestId] = useState<string | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   async function handleSignOut() {
-    await signOut();
+    await authClient.signOut();
+    router.push("/");
+    router.refresh();
   }
 
   function copyInviteCode(code: string) {

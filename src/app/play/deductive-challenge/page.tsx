@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import { siteConfig } from "@/config/site";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import DeductiveGame from "./DeductiveGame";
 
 export const metadata: Metadata = {
@@ -38,6 +41,18 @@ const schema = {
 };
 
 export default async function DeductiveChallengePage() {
+  let session = null;
+  try {
+    session = await auth.api.getSession({ headers: await headers() });
+  } catch (error) {
+    if (error instanceof Error && ((error as any).digest === "DYNAMIC_SERVER_USAGE" || error.message?.includes("Dynamic server usage"))) {
+      throw error;
+    }
+    console.error("[DeductiveChallengePage] Session fetch failed:", error);
+  }
+
+  // Allow anyone to play without authentication
+
   return (
     <>
       <script

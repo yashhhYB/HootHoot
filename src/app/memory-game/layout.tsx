@@ -1,29 +1,26 @@
-import { getCurrentUser } from "@/lib/cognito-server";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { UserProvider } from "@/context/UserContext";
 import Header from "@/components/common/Header";
-import type { User } from "@/types/user";
 
 export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  let user: User | null = null;
+  let user: any = null;
 
   try {
-    const cognitoUser = await getCurrentUser();
-    if (cognitoUser) {
-      user = {
-        id: cognitoUser.sub,
-        email: cognitoUser.email,
-        name: cognitoUser.name,
-        emailVerified: cognitoUser.email_verified,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+    user = session?.user ?? null;
+  } catch (error) {
+    if (error instanceof Error && ((error as any).digest === "DYNAMIC_SERVER_USAGE" || error.message?.includes("Dynamic server usage"))) {
+      throw error;
     }
-  } catch {
-    // Not authenticated — render as guest
+    // DB unreachable — render as guest
   }
   return (
     <UserProvider user={user ?? null}>

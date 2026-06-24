@@ -1,4 +1,5 @@
-import { getCurrentUser } from "@/lib/cognito-server";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
 import { getPracticeLeaderboard } from "@/features/arena/actions";
 import ArenaLanding from "./ArenaLanding";
 import type { Metadata } from "next";
@@ -11,16 +12,16 @@ export const metadata: Metadata = {
 };
 
 export default async function ArenaPage() {
-  const cognitoUser = await getCurrentUser().catch(() => null);
+  const session = await auth.api.getSession({ headers: await headers() }).catch(() => null);
 
-  const user: ArenaUser | null = cognitoUser
+  const user: ArenaUser | null = session?.user
     ? {
-        id: cognitoUser.sub,
-        email: cognitoUser.email,
-        name: cognitoUser.name ?? "Player",
+        id: session.user.id,
+        email: session.user.email,
+        name: session.user.name ?? "Player",
         role: "student",
-        avatar_url: null,
-        created_at: new Date().toISOString(),
+        avatar_url: session.user.image ?? null,
+        created_at: session.user.createdAt?.toISOString() ?? new Date().toISOString(),
       }
     : null;
 

@@ -16,7 +16,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "../ui/dropdown-menu";
-import { useSession } from "@/context/SessionContext";
+import { signOut } from "@/features/auth/actions";
 import { cn } from "@/lib/utils";
 import { GitHubStarsButton } from "@/components/ui/shadcn-io/github-stars-button";
 
@@ -73,11 +73,10 @@ function Navbar() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  const { signOut } = useSession();
-
   const handleSignOut = useCallback(async () => {
     await signOut();
-  }, [signOut]);
+    window.location.reload();
+  }, []);
 
   const close = useCallback(() => setMobileOpen(false), []);
 

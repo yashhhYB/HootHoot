@@ -1,77 +1,42 @@
-import { NextRequest, NextResponse } from "next/server";
+import { cookies } from 'next/headers';
+import { auroraPool } from '@/lib/db';
 
-/**
- * GET /api/auth/session
- * Verify the cognito_id_token cookie and return the user profile.
- */
-export async function GET() {
-  const { getCurrentUser } = await import("@/lib/cognito-server");
-  const user = await getCurrentUser();
-
-  if (!user) {
-    return NextResponse.json({ user: null }, { status: 401 });
-  }
-
-  return NextResponse.json({
-    user: {
-      id: user.sub,
-      email: user.email,
-      name: user.name,
-      emailVerified: user.email_verified,
-    },
-  });
-}
-
-/**
- * POST /api/auth/session
- * Receives the Cognito ID token from the client after sign-in, verifies it,
- * stores it as an HttpOnly cookie, and upserts the user into cognito_users.
- */
-export async function POST(req: NextRequest) {
+export async function GET(request: Request) {
   try {
-    const { idToken } = await req.json();
+    const cookieStore = await cookies();
+    // Check for token in cookies first (for browser requests)
+    let token = cookieStore.get('auth-token')?.value;
 
-    if (!idToken || typeof idToken !== "string") {
-      return NextResponse.json({ error: "Missing idToken" }, { status: 400 });
+    // If not in cookies, check Authorization header (for API requests)
+    if (!token) {
+      const authHeader = request.headers.get('authorization');
+      if (authHeader?.startsWith('Bearer ')) {
+        token = authHeader.slice(7);
+      }
     }
 
-    const { getUserFromBearer } = await import("@/lib/cognito-server");
-    const user = await getUserFromBearer(`Bearer ${idToken}`);
-
-    if (!user) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+    if (!token) {
+      return new Response(JSON.stringify({ user: null }), { status: 401 });
     }
 
-    // Upsert user into cognito_users so leaderboard and scores can JOIN on it
-    try {
-      const { auroraQuery } = await import("@/lib/db-aurora");
-      await auroraQuery(
-        `INSERT INTO cognito_users (sub, email, name, updated_at)
-         VALUES ($1, $2, $3, NOW())
-         ON CONFLICT (sub) DO UPDATE
-           SET email      = EXCLUDED.email,
-               name       = EXCLUDED.name,
-               updated_at = NOW()`,
-        [user.sub, user.email, user.name]
-      );
-    } catch (dbErr) {
-      // Non-fatal — the cookie will still be set
-      console.error("[session] cognito_users upsert failed:", dbErr);
+    // Verify token in database and get user
+    const result = await auroraPool.query(
+      `SELECT 
+        u.id, u.email, u.name, u.user_type as "userType", u.created_at as "createdAt"
+       FROM app_users u
+       INNER JOIN sessions s ON u.id = s.user_id
+       WHERE s.token = $1 AND s.expires_at > NOW()`,
+      [token]
+    );
+
+    if (result.rows.length === 0) {
+      return new Response(JSON.stringify({ user: null }), { status: 401 });
     }
 
-    const response = NextResponse.json({ ok: true, userId: user.sub });
-
-    response.cookies.set("cognito_id_token", idToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 60 * 60, // 1 hour — matches Cognito ID token expiry
-      path: "/",
-    });
-
-    return response;
-  } catch (err) {
-    console.error("[auth/session] Error:", err);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    const user = result.rows[0];
+    return new Response(JSON.stringify({ user }), { status: 200 });
+  } catch (error) {
+    console.error('[v0] Session endpoint error:', error);
+    return new Response(JSON.stringify({ error: 'Internal server error' }), { status: 500 });
   }
 }

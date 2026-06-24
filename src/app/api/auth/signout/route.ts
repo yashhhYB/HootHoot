@@ -1,18 +1,23 @@
-import { NextResponse } from "next/server";
+import { signOutUser } from "@/lib/simple-auth";
+import { NextRequest, NextResponse } from "next/server";
 
-/**
- * POST /api/auth/signout
- * Clears the HttpOnly cognito_id_token cookie.
- * The client side is responsible for calling Amplify's signOut() first.
- */
-export async function POST() {
-  const response = NextResponse.json({ ok: true });
-  response.cookies.set("cognito_id_token", "", {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: 0,
-    path: "/",
-  });
-  return response;
+export async function POST(request: NextRequest) {
+  try {
+    const token = request.cookies.get("auth-token")?.value;
+
+    if (token) {
+      await signOutUser(token);
+    }
+
+    const response = NextResponse.json({ success: true });
+    response.cookies.delete("auth-token");
+
+    return response;
+  } catch (err) {
+    console.error("[api/auth/signout] Error:", err);
+    return NextResponse.json(
+      { error: "Failed to sign out" },
+      { status: 500 }
+    );
+  }
 }

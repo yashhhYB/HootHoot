@@ -1,8 +1,5 @@
 import type { Metadata } from "next";
 import { siteConfig } from "@/config/site";
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
 import MotionGame from "./MotionGame";
 
 export const metadata: Metadata = {
@@ -40,19 +37,8 @@ const schema = {
     "Movement pattern recognition practice for Capgemini placement tests.",
 };
 
-export default async function MotionChallengePage() {
-  let session = null;
-  try {
-    session = await auth.api.getSession({ headers: await headers() });
-  } catch (error) {
-    if (error instanceof Error && ((error as any).digest === "DYNAMIC_SERVER_USAGE" || error.message?.includes("Dynamic server usage"))) {
-      throw error;
-    }
-    console.error("[MotionChallengePage] Session fetch failed:", error);
-  }
-
-  // Allow anyone to play without authentication
-
+export default function MotionChallengePage() {
+  // Open to everyone — no authentication required to play
   return (
     <>
       <script

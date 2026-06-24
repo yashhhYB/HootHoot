@@ -1,5 +1,5 @@
-import { signInUser } from "@/lib/simple-auth";
 import { NextRequest, NextResponse } from "next/server";
+import { signIn, setSessionCookie } from "@/lib/auth-core";
 
 export async function POST(request: NextRequest) {
   try {
@@ -7,37 +7,30 @@ export async function POST(request: NextRequest) {
     const { email, password } = body;
 
     if (!email || !password) {
-      return NextResponse.json(
-        { error: "Missing email or password" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Missing email or password" }, { status: 400 });
     }
 
-    const result = await signInUser(email, password);
+    const { user, token } = await signIn(email, password);
+    await setSessionCookie(token);
 
-    if ("error" in result) {
-      return NextResponse.json({ error: result.error }, { status: 401 });
-    }
-
-    const response = NextResponse.json(
-      { user: result.user, token: result.token },
+    return NextResponse.json(
+      {
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          userType: user.role,
+          avatar_url: user.avatar_url,
+          createdAt: user.createdAt,
+        },
+      },
       { status: 200 }
     );
-
-    // Set token as HttpOnly cookie
-    response.cookies.set("auth-token", result.token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 30 * 24 * 60 * 60, // 30 days
-    });
-
-    return response;
   } catch (err) {
-    console.error("[api/auth/signin] Error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    const message = err instanceof Error ? err.message : "Internal server error";
+    console.error("[api/auth/signin] Error:", message);
+    const isAuthError = message.includes("Invalid") || message.includes("required");
+    return NextResponse.json({ error: message }, { status: isAuthError ? 401 : 500 });
   }
 }

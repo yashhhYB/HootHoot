@@ -1,13 +1,25 @@
 import { NextResponse } from "next/server";
-import {
-  createArenaUser,
-  signInArenaUser,
-  createArenaSession,
-  setArenaSessionCookie,
-  clearArenaSession,
-} from "@/lib/arena-auth";
+import { signUp, signIn, setSessionCookie, signOutByToken, clearSessionCookie, SESSION_COOKIE } from "@/lib/auth-core";
 import { auroraQuery } from "@/lib/db-aurora";
-import { nanoid } from "nanoid";
+import type { ArenaUser } from "@/types/arena";
+
+function toArenaUser(user: {
+  id: string;
+  email: string;
+  name: string;
+  role: "student" | "company";
+  avatar_url: string | null;
+  createdAt: Date;
+}): ArenaUser {
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    avatar_url: user.avatar_url,
+    created_at: user.createdAt.toISOString(),
+  };
+}
 
 // POST /api/arena/auth  — { action: 'signup' | 'signin' | 'signout', ...payload }
 export async function POST(req: Request) {
@@ -28,24 +40,21 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Invalid role." }, { status: 400 });
       }
 
-      const { user, error } = await createArenaUser(email, password, name, role);
-      if (error || !user) {
-        return NextResponse.json({ error }, { status: 409 });
-      }
+      const { user, token } = await signUp({ email, password, name, role, companyName });
 
-      // If company role, also create the company record
-      if (role === "company" && companyName) {
+      // Enrich the company row with optional industry / website
+      if (role === "company" && (industry || website)) {
         await auroraQuery(
-          `INSERT INTO companies (id, user_id, name, industry, website, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, NOW(), NOW())`,
-          [nanoid(24), user.id, companyName, industry || null, website || null]
+          `UPDATE companies SET industry = COALESCE($2, industry),
+                                website  = COALESCE($3, website),
+                                updated_at = NOW()
+           WHERE user_id = $1`,
+          [user.id, industry || null, website || null]
         );
       }
 
-      const sessionId = await createArenaSession(user.id);
-      await setArenaSessionCookie(sessionId);
-
-      return NextResponse.json({ user });
+      await setSessionCookie(token);
+      return NextResponse.json({ user: toArenaUser(user) });
     }
 
     if (action === "signin") {
@@ -54,19 +63,15 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Missing email or password." }, { status: 400 });
       }
 
-      const { user, error } = await signInArenaUser(email, password);
-      if (error || !user) {
-        return NextResponse.json({ error }, { status: 401 });
-      }
-
-      const sessionId = await createArenaSession(user.id);
-      await setArenaSessionCookie(sessionId);
-
-      return NextResponse.json({ user });
+      const { user, token } = await signIn(email, password);
+      await setSessionCookie(token);
+      return NextResponse.json({ user: toArenaUser(user) });
     }
 
     if (action === "signout") {
-      await clearArenaSession();
+      const token = req.headers.get("cookie")?.match(new RegExp(`${SESSION_COOKIE}=([^;]+)`))?.[1];
+      await signOutByToken(token);
+      await clearSessionCookie();
       return NextResponse.json({ success: true });
     }
 
@@ -74,6 +79,11 @@ export async function POST(req: Request) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "Server error";
     console.error("[Arena Auth API]", message);
-    return NextResponse.json({ error: message }, { status: 500 });
+    const isClientError =
+      message.includes("already exists") ||
+      message.includes("Invalid") ||
+      message.includes("required") ||
+      message.includes("at least");
+    return NextResponse.json({ error: message }, { status: isClientError ? 409 : 500 });
   }
 }

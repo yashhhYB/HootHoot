@@ -1,7 +1,6 @@
 "use server";
 
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
+import { getCurrentUser } from "@/lib/auth-core";
 import { db } from "@/lib/db";
 import { gameScores } from "@/lib/schema";
 import { randomUUID } from "crypto";
@@ -11,15 +10,15 @@ import { randomUUID } from "crypto";
  */
 export async function saveScore(gameId: string, score: number) {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
+    const user = await getCurrentUser();
 
-    if (!session) {
+    if (!user) {
       return { success: false, error: "Unauthorized" };
     }
 
     await db.insert(gameScores).values({
       id: randomUUID(),
-      userId: session.user.id,
+      userId: user.id,
       gameId,
       score,
     });

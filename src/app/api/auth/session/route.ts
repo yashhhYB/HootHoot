@@ -1,42 +1,39 @@
-import { cookies } from 'next/headers';
-import { auroraPool } from '@/lib/db';
+import { NextResponse } from "next/server";
+import { SESSION_COOKIE, getUserByToken } from "@/lib/auth-core";
+import { cookies } from "next/headers";
 
 export async function GET(request: Request) {
   try {
     const cookieStore = await cookies();
-    // Check for token in cookies first (for browser requests)
-    let token = cookieStore.get('auth-token')?.value;
+    let token = cookieStore.get(SESSION_COOKIE)?.value;
 
-    // If not in cookies, check Authorization header (for API requests)
+    // Fall back to Authorization header for non-browser callers
     if (!token) {
-      const authHeader = request.headers.get('authorization');
-      if (authHeader?.startsWith('Bearer ')) {
-        token = authHeader.slice(7);
-      }
+      const authHeader = request.headers.get("authorization");
+      if (authHeader?.startsWith("Bearer ")) token = authHeader.slice(7);
     }
 
-    if (!token) {
-      return new Response(JSON.stringify({ user: null }), { status: 401 });
+    const user = await getUserByToken(token);
+    if (!user) {
+      return NextResponse.json({ user: null }, { status: 200 });
     }
 
-    // Verify token in database and get user
-    const result = await auroraPool.query(
-      `SELECT 
-        u.id, u.email, u.name, u.user_type as "userType", u.created_at as "createdAt"
-       FROM app_users u
-       INNER JOIN sessions s ON u.id = s.user_id
-       WHERE s.token = $1 AND s.expires_at > NOW()`,
-      [token]
+    return NextResponse.json(
+      {
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          userType: user.role,
+          avatar_url: user.avatar_url,
+          createdAt: user.createdAt,
+        },
+      },
+      { status: 200 }
     );
-
-    if (result.rows.length === 0) {
-      return new Response(JSON.stringify({ user: null }), { status: 401 });
-    }
-
-    const user = result.rows[0];
-    return new Response(JSON.stringify({ user }), { status: 200 });
   } catch (error) {
-    console.error('[v0] Session endpoint error:', error);
-    return new Response(JSON.stringify({ error: 'Internal server error' }), { status: 500 });
+    console.error("[api/auth/session] Error:", error);
+    return NextResponse.json({ user: null }, { status: 200 });
   }
 }

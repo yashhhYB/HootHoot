@@ -1,17 +1,22 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSession } from "@/context/SessionContext";
+import { useRouter } from "next/navigation";
+import { useGameScore } from "@/hooks/useGameScore";
 import { generateSwitchPuzzle, checkSwitchAnswer, SwitchPuzzle } from "@/features/switch-challenge/gameLogic";
 import Container from "@/components/common/Container";
 import GamePage from "@/components/common/GamePage";
 import SwitchChallengeUI from "@/components/games/SwitchChallengeUI";
 import { formatTime } from "@/lib/gameUtils";
-import { saveScore } from "@/features/scoring/actions";
 
 const TIME_PER_QUESTION = 20;
 const SESSION_TIME = 180;
 
 export default function SwitchGame() {
+  const { user, loading } = useSession();
+  const router = useRouter();
+  const { saveScore } = useGameScore();
   const [level, setLevel] = useState(1);
   const [correct, setCorrect] = useState(0);
   const [wrong, setWrong] = useState(0);
@@ -24,12 +29,19 @@ export default function SwitchGame() {
   const [gameStatus, setGameStatus] = useState<"playing" | "results">("playing");
   const [isScoreSaved, setIsScoreSaved] = useState(false);
 
+  // Redirect to auth if not logged in
   useEffect(() => {
-    if (gameStatus === "results" && !isScoreSaved) {
+    if (!loading && !user) {
+      router.push("/arena/auth?redirect=/play/switch-challenge");
+    }
+  }, [user, loading, router]);
+
+  useEffect(() => {
+    if (gameStatus === "results" && !isScoreSaved && user) {
       saveScore("switch-challenge", correct);
       setIsScoreSaved(true);
     }
-  }, [gameStatus, correct, isScoreSaved]);
+  }, [gameStatus, correct, isScoreSaved, user]);
 
   useEffect(() => {
     setPuzzle(generateSwitchPuzzle(level));

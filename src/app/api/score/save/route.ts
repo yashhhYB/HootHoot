@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
 
     // Verify token and get user ID
     const sessionResult = await auroraPool.query(
-      `SELECT user_id FROM app_sessions WHERE token = $1 AND expires_at > NOW()`,
+      `SELECT user_id FROM sessions WHERE token = $1 AND expires_at > NOW()`,
       [token]
     );
 
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
 
     // Save the game score
     await auroraPool.query(
-      `INSERT INTO game_score (id, user_id, game_id, score, created_at)
+      `INSERT INTO game_scores (id, user_id, game_id, score, created_at)
        VALUES ($1, $2, $3, $4, NOW())`,
       [randomUUID(), userId, gameId, score]
     );

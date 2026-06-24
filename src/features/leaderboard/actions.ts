@@ -1,94 +1,65 @@
 "use server";
 
-import { db } from "@/lib/db";
-import { gameScores, users } from "@/lib/schema";
-import { eq, desc, max, sql } from "drizzle-orm";
+import { auroraPool } from "@/lib/db";
 
 export type LeaderboardEntry = {
   rank: number;
   userId: string;
   name: string | null;
-  image: string | null;
-  score: number;
+  userType: string;
+  totalScore: number;
+  gamesPlayed: number;
+  avgScore: number;
 };
 
 export async function getLeaderboard(gameId?: string): Promise<LeaderboardEntry[]> {
   try {
+    let query = `
+      SELECT 
+        ROW_NUMBER() OVER (ORDER BY COALESCE(SUM(gs.score), 0) DESC) as rank,
+        u.id as "userId",
+        u.name,
+        u.user_type as "userType",
+        COALESCE(SUM(gs.score), 0)::integer as "totalScore",
+        COUNT(DISTINCT gs.game_id)::integer as "gamesPlayed",
+        ROUND(COALESCE(AVG(gs.score), 0)::numeric, 2)::float as "avgScore"
+      FROM app_users u
+      LEFT JOIN game_scores gs ON u.id = gs.user_id
+    `;
+
+    const params: unknown[] = [];
+
     if (gameId) {
       // Best score per user for a specific game
-      const scores = await db
-        .select({ userId: gameScores.userId, maxScore: max(gameScores.score) })
-        .from(gameScores)
-        .where(eq(gameScores.gameId, gameId))
-        .groupBy(gameScores.userId)
-        .orderBy(desc(max(gameScores.score)))
-        .limit(30);
-
-      const userIds = scores.map((s) => s.userId);
-      if (userIds.length === 0) return [];
-
-      const userRows = await db
-        .select({ id: users.id, name: users.name, image: users.image })
-        .from(users)
-        .where(sql`${users.id} = ANY(ARRAY[${sql.join(userIds.map(id => sql`${id}`), sql`, `)}])`);
-
-      return scores
-        .map((s, i) => {
-          const user = userRows.find((u) => u.id === s.userId);
-          if (!user) return null;
-          return {
-            rank: i + 1,
-            userId: user.id,
-            name: user.name,
-            image: user.image,
-            score: s.maxScore ?? 0,
-          };
-        })
-        .filter((x): x is LeaderboardEntry => x !== null);
+      query = `
+        SELECT 
+          ROW_NUMBER() OVER (ORDER BY MAX(gs.score) DESC) as rank,
+          u.id as "userId",
+          u.name,
+          u.user_type as "userType",
+          MAX(gs.score)::integer as "totalScore",
+          COUNT(DISTINCT gs.game_id)::integer as "gamesPlayed",
+          ROUND(AVG(gs.score)::numeric, 2)::float as "avgScore"
+        FROM app_users u
+        LEFT JOIN game_scores gs ON u.id = gs.user_id AND gs.game_id = $1
+        GROUP BY u.id, u.name, u.user_type
+        ORDER BY "totalScore" DESC NULLS LAST
+        LIMIT 50
+      `;
+      params.push(gameId);
     } else {
-      // Overall: sum of best scores per game per user
-      const allBest = await db
-        .select({
-          userId: gameScores.userId,
-          gameId: gameScores.gameId,
-          bestScore: max(gameScores.score),
-        })
-        .from(gameScores)
-        .groupBy(gameScores.userId, gameScores.gameId);
-
-      const userTotals = new Map<string, number>();
-      for (const row of allBest) {
-        userTotals.set(row.userId, (userTotals.get(row.userId) ?? 0) + (row.bestScore ?? 0));
-      }
-
-      const sorted = Array.from(userTotals.entries())
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 50);
-
-      const userIds = sorted.map(([id]) => id);
-      if (userIds.length === 0) return [];
-
-      const userRows = await db
-        .select({ id: users.id, name: users.name, image: users.image })
-        .from(users)
-        .where(sql`${users.id} = ANY(ARRAY[${sql.join(userIds.map(id => sql`${id}`), sql`, `)}])`);
-
-      return sorted
-        .map(([id, score], i) => {
-          const user = userRows.find((u) => u.id === id);
-          if (!user) return null;
-          return {
-            rank: i + 1,
-            userId: user.id,
-            name: user.name,
-            image: user.image,
-            score,
-          };
-        })
-        .filter((x): x is LeaderboardEntry => x !== null);
+      // Overall: sum of all scores per user
+      query += `
+        GROUP BY u.id, u.name, u.user_type
+        ORDER BY "totalScore" DESC NULLS LAST
+        LIMIT 50
+      `;
     }
+
+    const result = await auroraPool.query(query, params);
+    return result.rows as LeaderboardEntry[];
   } catch (error) {
-    console.error("Error fetching leaderboard:", error);
+    console.error("[v0] Error fetching leaderboard:", error);
     return [];
   }
 }

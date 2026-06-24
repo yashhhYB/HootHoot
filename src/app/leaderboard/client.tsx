@@ -108,7 +108,7 @@ function Podium({ top3 }: { top3: LeaderboardEntry[] }) {
                                 ${isFirst ? "h-20 w-20 sm:h-[88px] sm:w-[88px]" : "h-16 w-16 sm:h-20 sm:w-20"}
                                 ${cfg.ring}
                             `}>
-                                <AvatarImage src={entry.image || undefined} alt={entry.name || "User"} className="object-cover" />
+                                <AvatarImage src={entry.name || undefined} alt={entry.name || "User"} className="object-cover" />
                                 <AvatarFallback className={`text-base font-black ${cfg.badge}`}>
                                     {entry.name?.slice(0, 2).toUpperCase() || "U"}
                                 </AvatarFallback>
@@ -125,7 +125,7 @@ function Podium({ top3 }: { top3: LeaderboardEntry[] }) {
                         </p>
 
                         {/* Score */}
-                        <p className={`text-xs font-mono font-bold mt-0.5 ${cfg.score}`}>
+                        <p className={`text-xs font-mono font-bold mt-0.5 ${cfg.totalScore}`}>
                             {entry.score.toLocaleString()}
                             <span className="text-white/30 font-normal ml-0.5">pts</span>
                         </p>
@@ -372,7 +372,7 @@ export default function LeaderboardClient({ data, gameId, currentUserId }: Leade
 
                                                                     {/* Avatar */}
                                                                     <Avatar className={`h-9 w-9 sm:h-10 sm:w-10 shrink-0 ${isTop3 ? cfg!.ring : "ring-1 ring-white/10"}`}>
-                                                                        <AvatarImage src={entry.image || undefined} alt={entry.name || "User"} className="object-cover" />
+                                                                        <AvatarImage src={entry.name || undefined} alt={entry.name || "User"} className="object-cover" />
                                                                         <AvatarFallback className={`text-xs font-black ${isTop3 ? cfg!.badge : "bg-white/8 text-white/60"}`}>
                                                                             {entry.name?.slice(0, 2).toUpperCase() || "U"}
                                                                         </AvatarFallback>

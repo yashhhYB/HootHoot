@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
+import { getSessionUser } from "@/lib/get-session";
 import { getCompanyTests, getAllTestsAnalytics } from "@/features/company/actions";
 import CompanyDashboardClient from "./CompanyDashboardClient";
 import type { Metadata } from "next";
@@ -12,24 +11,24 @@ export const metadata: Metadata = {
 };
 
 export default async function CompanyPage() {
-  const session = await auth.api.getSession({ headers: await headers() }).catch(() => null);
+  const sessionUser = await getSessionUser();
 
-  if (!session?.user) {
+  if (!sessionUser || sessionUser.userType !== "company") {
     redirect("/arena/auth?role=company&redirect=/company");
   }
 
   const user: ArenaUser = {
-    id: session.user.id,
-    email: session.user.email,
-    name: session.user.name ?? "User",
+    id: sessionUser.id,
+    email: sessionUser.email,
+    name: sessionUser.name,
     role: "company",
-    avatar_url: session.user.image ?? null,
-    created_at: session.user.createdAt?.toISOString() ?? new Date().toISOString(),
+    avatar_url: null,
+    created_at: sessionUser.createdAt,
   };
 
   const [tests, analytics] = await Promise.all([
-    getCompanyTests(session.user.id),
-    getAllTestsAnalytics(session.user.id),
+    getCompanyTests(sessionUser.id),
+    getAllTestsAnalytics(sessionUser.id),
   ]);
 
   return <CompanyDashboardClient user={user} tests={tests} analytics={analytics} />;

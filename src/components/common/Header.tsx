@@ -16,7 +16,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "../ui/dropdown-menu";
-import { signOut } from "@/features/auth/actions";
+
 import { cn } from "@/lib/utils";
 import { GitHubStarsButton } from "@/components/ui/shadcn-io/github-stars-button";
 
@@ -74,8 +74,8 @@ function Navbar() {
   }, []);
 
   const handleSignOut = useCallback(async () => {
-    await signOut();
-    window.location.reload();
+    await fetch("/api/auth/signout", { method: "POST" });
+    window.location.href = "/";
   }, []);
 
   const close = useCallback(() => setMobileOpen(false), []);

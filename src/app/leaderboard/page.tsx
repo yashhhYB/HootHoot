@@ -1,8 +1,8 @@
 import { getLeaderboard } from "@/features/leaderboard/actions";
 import LeaderboardClient from "./client";
 import type { Metadata } from "next";
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
+import { getSessionUser } from "@/lib/get-session";
+
 import { siteConfig } from "@/config/site";
 
 export const metadata: Metadata = {
@@ -32,10 +32,8 @@ export default async function LeaderboardPage(
   // Get current user — fail gracefully so a session/DB error doesn't crash the page
   let currentUserId: string | undefined;
   try {
-    const session = await auth.api.getSession({
-      headers: await headers()
-    });
-    currentUserId = session?.user?.id;
+    const sessionUser = await getSessionUser();
+    currentUserId = sessionUser?.id;
   } catch (e) {
     console.error('Failed to fetch session on leaderboard page:', e);
   }

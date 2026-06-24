@@ -1,5 +1,4 @@
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
+import { getSessionUser } from "@/lib/get-session";
 import { UserProvider } from "@/context/UserContext";
 import Footer from "@/components/common/Footer";
 import Header from "@/components/common/Header";
@@ -12,12 +11,15 @@ export default async function GamesLayout({
   let user: any = null;
 
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    user = session?.user ?? null;
-  } catch (error) {
-    if (error instanceof Error && ((error as any).digest === "DYNAMIC_SERVER_USAGE" || error.message?.includes("Dynamic server usage"))) {
-      throw error;
+    const sessionUser = await getSessionUser();
+    if (sessionUser) {
+      user = {
+        id: sessionUser.id,
+        email: sessionUser.email,
+        name: sessionUser.name,
+      };
     }
+  } catch (error) {
     // DB unreachable — render as guest
   }
 

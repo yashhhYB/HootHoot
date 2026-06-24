@@ -1,12 +1,12 @@
 "use client";
 
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import StartScreen from "./StartScreen";
 import QuizScreen from "./QuizScreen";
 import ResultScreen from "./ResultScreen";
 import { AnimatePresence, motion } from "framer-motion";
-import { authClient } from "@/lib/auth-client";
+import { useSession } from "@/context/SessionContext";
 import { Loader2, LockKeyhole } from "lucide-react";
 import Link from "next/link";
 import { Button } from "../ui/button";
@@ -17,7 +17,7 @@ export default function IQTestContainer() {
     const [viewState, setViewState] = useState<ViewState>('start');
     const [results, setResults] = useState<any>(null);
 
-    const { data: session, isPending } = authClient.useSession();
+    const { user, loading } = useSession();
 
     const handleStart = () => {
         setViewState('playing');
@@ -33,7 +33,7 @@ export default function IQTestContainer() {
         setViewState('start');
     };
 
-    if (isPending) {
+    if (loading) {
         return (
             <div className="w-full h-96 flex items-center justify-center">
                 <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -41,7 +41,7 @@ export default function IQTestContainer() {
         );
     }
 
-    if (!session) {
+    if (!user) {
         return (
             <div className="w-full max-w-2xl mx-auto py-12 px-4">
                 <div className="bg-card w-full rounded-xl border shadow-sm p-8 text-center space-y-6">

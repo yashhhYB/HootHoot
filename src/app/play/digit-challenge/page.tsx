@@ -1,8 +1,10 @@
+"use client";
+
 import type { Metadata } from "next";
 import { siteConfig } from "@/config/site";
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
+
+
+
 import DigitGame from "./DigitGame";
 
 export const metadata: Metadata = {
@@ -40,18 +42,7 @@ const schema = {
     "Number sequence puzzle practice for Capgemini and Cognizant placement tests.",
 };
 
-export default async function DigitChallengePage() {
-  let session = null;
-  try {
-    session = await auth.api.getSession({ headers: await headers() });
-  } catch (error) {
-    if (error instanceof Error && ((error as any).digest === "DYNAMIC_SERVER_USAGE" || error.message?.includes("Dynamic server usage"))) {
-      throw error;
-    }
-    console.error("[DigitChallengePage] Session fetch failed:", error);
-  }
-
-  // Allow anyone to play without authentication
+export default function DigitChallengePage() {
 
   return (
     <>

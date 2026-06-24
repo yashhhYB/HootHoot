@@ -1,16 +1,15 @@
 "use server";
 
 import { auroraQuery, withAuroraConnection } from "@/lib/db-aurora";
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
+import { getSessionUser } from "@/lib/get-session";
 import { nanoid } from "nanoid";
 import type { CompanyTest, TestSession, TestAnalytics, QuestionConfig } from "@/types/arena";
 
-// ── Guard helper — uses Better Auth session ───────────────────
-async function requireBetterAuthUser() {
-  const session = await auth.api.getSession({ headers: await headers() }).catch(() => null);
-  if (!session?.user) throw new Error("Unauthorized: Sign in required.");
-  return session.user;
+// ── Guard helper — uses Simple Auth session ───────────────────
+async function requireAuthUser() {
+  const sessionUser = await getSessionUser();
+  if (!sessionUser) throw new Error("Unauthorized: Sign in required.");
+  return { id: sessionUser.id, email: sessionUser.email, name: sessionUser.name };
 }
 
 // ── Ensure a company row exists for a user (upsert) ───────────
@@ -48,7 +47,7 @@ export async function createCompanyTest(params: {
   endsAt?: string;
 }): Promise<{ test: CompanyTest | null; error: string | null }> {
   try {
-    const user = await requireBetterAuthUser();
+    const user = await requireAuthUser();
     const companyId = await ensureCompany(user.id, user.name ?? undefined);
 
     // Generate unique invite code
@@ -80,7 +79,7 @@ export async function createCompanyTest(params: {
 
 export async function getCompanyTests(userId?: string): Promise<CompanyTest[]> {
   try {
-    const uid = userId ?? (await requireBetterAuthUser()).id;
+    const uid = userId ?? (await requireAuthUser()).id;
     const companyId = await ensureCompany(uid);
     const result = await auroraQuery(
       `SELECT * FROM company_tests WHERE company_id = $1 ORDER BY created_at DESC`,
@@ -97,7 +96,7 @@ export async function updateTestStatus(
   status: "draft" | "active" | "closed"
 ): Promise<{ error: string | null }> {
   try {
-    const user = await requireBetterAuthUser();
+    const user = await requireAuthUser();
     const companyId = await ensureCompany(user.id);
     await auroraQuery(
       `UPDATE company_tests SET status = $1 WHERE id = $2 AND company_id = $3`,
@@ -111,7 +110,7 @@ export async function updateTestStatus(
 
 export async function deleteTest(testId: string): Promise<{ error: string | null }> {
   try {
-    const user = await requireBetterAuthUser();
+    const user = await requireAuthUser();
     const companyId = await ensureCompany(user.id);
     await auroraQuery(
       `DELETE FROM company_tests WHERE id = $1 AND company_id = $2`,
@@ -127,7 +126,7 @@ export async function deleteTest(testId: string): Promise<{ error: string | null
 
 export async function getTestSessions(testId: string): Promise<TestSession[]> {
   try {
-    const user = await requireBetterAuthUser();
+    const user = await requireAuthUser();
     const companyId = await ensureCompany(user.id);
     // Verify ownership
     const owns = await auroraQuery(
@@ -152,7 +151,7 @@ export async function getTestSessions(testId: string): Promise<TestSession[]> {
 
 export async function getTestAnalytics(testId: string): Promise<TestAnalytics | null> {
   try {
-    const user = await requireBetterAuthUser();
+    const user = await requireAuthUser();
     const companyId = await ensureCompany(user.id);
     const result = await auroraQuery(
       `SELECT * FROM test_analytics WHERE test_id = $1 AND company_id = $2`,
@@ -167,7 +166,7 @@ export async function getTestAnalytics(testId: string): Promise<TestAnalytics | 
 
 export async function getAllTestsAnalytics(userId?: string): Promise<TestAnalytics[]> {
   try {
-    const uid = userId ?? (await requireBetterAuthUser()).id;
+    const uid = userId ?? (await requireAuthUser()).id;
     const companyId = await ensureCompany(uid);
     const result = await auroraQuery(
       `SELECT * FROM test_analytics WHERE company_id = $1`,

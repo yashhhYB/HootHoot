@@ -1,8 +1,10 @@
+"use client";
+
 import type { Metadata } from "next";
 import { siteConfig } from "@/config/site";
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
+
+
+
 import InductiveGame from "./InductiveGame";
 
 export const metadata: Metadata = {
@@ -40,18 +42,7 @@ const schema = {
     "Visual inductive reasoning game for Capgemini and Cognizant placement test practice.",
 };
 
-export default async function InductiveChallengePage() {
-  let session = null;
-  try {
-    session = await auth.api.getSession({ headers: await headers() });
-  } catch (error) {
-    if (error instanceof Error && ((error as any).digest === "DYNAMIC_SERVER_USAGE" || error.message?.includes("Dynamic server usage"))) {
-      throw error;
-    }
-    console.error("[InductiveChallengePage] Session fetch failed:", error);
-  }
-
-  // Allow anyone to play without authentication
+export default function InductiveChallengePage() {
 
   return (
     <>

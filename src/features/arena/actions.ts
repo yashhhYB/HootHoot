@@ -1,8 +1,8 @@
 "use server";
 
 import { auroraQuery } from "@/lib/db-aurora";
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
+import { getSessionUser } from "@/lib/get-session";
+
 import { nanoid } from "nanoid";
 import type {
   ArenaLeaderboardEntry,
@@ -21,9 +21,9 @@ export async function submitPracticeAttempt(params: {
   warningsCount: number;
   isStrictMode: boolean;
 }): Promise<{ attempt: PracticeAttempt | null; error: string | null }> {
-  const session = await auth.api.getSession({ headers: await headers() }).catch(() => null);
-  if (!session?.user) return { attempt: null, error: "You must be signed in to save your attempt." };
-  const userId = session.user.id;
+  const sessionUser = await getSessionUser();
+  if (!sessionUser) return { attempt: null, error: "You must be signed in to save your attempt." };
+  const userId = sessionUser.id;
 
   const id = nanoid(24);
   const result = await auroraQuery(
@@ -49,18 +49,18 @@ export async function submitPracticeAttempt(params: {
 
 export async function getPracticeLeaderboard(limit = 50): Promise<ArenaLeaderboardEntry[]> {
   // Best attempt per user: highest score, then fastest time
-  // Joins the Better Auth 'user' table (same DB) for the display name
+  // Joins the Simple Auth 'app_users' table (same DB) for the display name
   const result = await auroraQuery(
     `SELECT DISTINCT ON (pa.user_id)
        pa.id,
        pa.user_id,
        u.name,
-       u.image AS avatar_url,
+       NULL AS avatar_url,
        pa.score,
        pa.time_taken_ms,
        pa.created_at
      FROM practice_attempts pa
-     JOIN "user" u ON u.id = pa.user_id
+     JOIN app_users u ON u.id = pa.user_id
      ORDER BY pa.user_id, pa.score DESC, pa.time_taken_ms ASC, pa.created_at DESC
      LIMIT $1`,
     [limit]
@@ -94,15 +94,15 @@ export async function getPracticeLeaderboard(limit = 50): Promise<ArenaLeaderboa
 }
 
 export async function getMyPracticeHistory(limit = 10): Promise<PracticeAttempt[]> {
-  const session = await auth.api.getSession({ headers: await headers() }).catch(() => null);
-  if (!session?.user) return [];
+  const sessionUser = await getSessionUser();
+  if (!sessionUser) return [];
 
   const result = await auroraQuery(
     `SELECT * FROM practice_attempts
      WHERE user_id = $1
      ORDER BY created_at DESC
      LIMIT $2`,
-    [session.user.id, limit]
+    [sessionUser.id, limit]
   );
 
   return result.rows as PracticeAttempt[];

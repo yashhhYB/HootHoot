@@ -185,8 +185,7 @@ export async function joinTestByCode(inviteCode: string): Promise<{
   error: string | null;
 }> {
   try {
-    const session = await auth.api.getSession({ headers: await headers() }).catch(() => null);
-    if (!session?.user) return { test: null, error: "Sign in required." };
+    const sessionUser = await requireAuthUser();
 
     const result = await auroraQuery(
       `SELECT * FROM company_tests WHERE invite_code = $1 AND status = 'active'`,
@@ -207,9 +206,7 @@ export async function startTestSession(testId: string): Promise<{
   error: string | null;
 }> {
   try {
-    const session = await auth.api.getSession({ headers: await headers() }).catch(() => null);
-    if (!session?.user) return { sessionId: null, error: "Sign in required." };
-    const user = session.user;
+    const user = await requireAuthUser();
 
     const test = await auroraQuery(
       `SELECT total_questions FROM company_tests WHERE id = $1 AND status = 'active'`,
@@ -246,9 +243,7 @@ export async function submitTestSession(params: {
   status: "completed" | "disqualified";
 }): Promise<{ error: string | null }> {
   try {
-    const session = await auth.api.getSession({ headers: await headers() }).catch(() => null);
-    if (!session?.user) return { error: "Sign in required." };
-    const user = session.user;
+    const user = await requireAuthUser();
 
     await auroraQuery(
       `UPDATE test_sessions

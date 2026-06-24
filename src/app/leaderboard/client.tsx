@@ -125,8 +125,8 @@ function Podium({ top3 }: { top3: LeaderboardEntry[] }) {
                         </p>
 
                         {/* Score */}
-                        <p className={`text-xs font-mono font-bold mt-0.5 ${cfg.totalScore}`}>
-                            {entry.score.toLocaleString()}
+                        <p className={`text-xs font-mono font-bold mt-0.5 ${cfg.score}`}>
+                            {entry.totalScore.toLocaleString()}
                             <span className="text-white/30 font-normal ml-0.5">pts</span>
                         </p>
 
@@ -175,7 +175,6 @@ function MyRankCard({ userRank }: { userRank: LeaderboardEntry }) {
                     {/* Avatar */}
                     <div className={`relative ${isTop3 ? cfg!.glow + " rounded-full" : ""}`}>
                         <Avatar className={`h-12 w-12 ${isTop3 ? cfg!.ring : "ring-1 ring-white/20"}`}>
-                            <AvatarImage src={userRank.image || undefined} alt={userRank.name || "You"} className="object-cover" />
                             <AvatarFallback className={`font-black text-sm ${isTop3 ? cfg!.badge : "bg-primary/20 text-primary"}`}>
                                 {userRank.name?.slice(0, 2).toUpperCase() || "U"}
                             </AvatarFallback>
@@ -202,7 +201,7 @@ function MyRankCard({ userRank }: { userRank: LeaderboardEntry }) {
                 <div className="text-right pr-1">
                     <p className="text-xs text-white/40 uppercase tracking-widest font-semibold mb-0.5">Best Score</p>
                     <p className={`text-3xl font-black tabular-nums ${isTop3 ? cfg!.score : "text-white"}`}>
-                        {userRank.score.toLocaleString()}
+                        {userRank.totalScore.toLocaleString()}
                     </p>
                     <p className="text-[11px] text-white/30">points</p>
                 </div>
@@ -405,7 +404,7 @@ export default function LeaderboardClient({ data, gameId, currentUserId }: Leade
                                                                                 entry.rank === 3 ? "text-amber-400" :
                                                                                     isCurrent ? "text-primary" : "text-white/70"
                                                                         }`}>
-                                                                        {entry.score.toLocaleString()}
+                                                                        {entry.totalScore.toLocaleString()}
                                                                     </span>
                                                                     <span className="text-[10px] ml-0.5 text-white/25">pts</span>
                                                                 </div>

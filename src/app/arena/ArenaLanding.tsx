@@ -194,7 +194,11 @@ export default function ArenaLanding({ user, leaderboard }: Props) {
 
                     <div className="col-span-2 text-right">
                       <span className="text-xs text-muted-foreground">
-                        {new Date(entry.created_at).toLocaleDateString()}
+                        {new Date(entry.created_at).toLocaleDateString("en-US", {
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                        })}
                       </span>
                     </div>
                   </div>

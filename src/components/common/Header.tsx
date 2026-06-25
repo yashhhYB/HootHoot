@@ -18,7 +18,6 @@ import {
 } from "../ui/dropdown-menu";
 import { signOut } from "@/features/auth/actions";
 import { cn } from "@/lib/utils";
-import { GitHubStarsButton } from "@/components/ui/shadcn-io/github-stars-button";
 
 // Simple hamburger icon with CSS transitions
 function HamburgerIcon({ open }: { open: boolean }) {
@@ -229,14 +228,8 @@ function Navbar() {
               })}
             </nav>
 
-            {/* Divider + GitHub stars */}
+            {/* Divider + user profile */}
             <div className="px-4 pb-4 pt-1 border-t border-border/40 flex flex-col gap-6">
-              <GitHubStarsButton
-                username="NishulDhakar"
-                repo="BlyncWeb"
-                className="w-full justify-center"
-              />
-
               {user && (
                 <div className="flex items-center gap-3 px-1">
                   <Avatar className="h-8 w-8 border border-border/40 shrink-0">

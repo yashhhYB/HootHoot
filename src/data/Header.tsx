@@ -22,5 +22,9 @@ export const navbarConfig = {
       label: 'For Companies',
       href: '/company',
     },
+    {
+      label: 'AWS DB',
+      href: '/aws',
+    },
   ] as NavItem[],
 };

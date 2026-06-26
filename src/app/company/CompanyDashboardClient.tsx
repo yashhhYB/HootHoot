@@ -10,7 +10,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { ArenaUser, CompanyTest, TestAnalytics } from "@/types/arena";
 import { updateTestStatus, deleteTest } from "@/features/company/actions";
-import { authClient } from "@/lib/auth-client";
+import { signOut } from "@/features/auth/actions";
 import CreateTestWizard from "./CreateTestWizard";
 import TestResultsView from "./TestResultsView";
 import { useRouter } from "next/navigation";
@@ -32,7 +32,7 @@ export default function CompanyDashboardClient({ user, tests, analytics }: Props
   const [isPending, startTransition] = useTransition();
 
   async function handleSignOut() {
-    await authClient.signOut();
+    await signOut();
     router.push("/");
     router.refresh();
   }

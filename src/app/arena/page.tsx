@@ -1,5 +1,4 @@
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
+import { getCurrentUser } from "@/lib/auth-core";
 import { getPracticeLeaderboard } from "@/features/arena/actions";
 import ArenaLanding from "./ArenaLanding";
 import type { Metadata } from "next";
@@ -12,16 +11,16 @@ export const metadata: Metadata = {
 };
 
 export default async function ArenaPage() {
-  const session = await auth.api.getSession({ headers: await headers() }).catch(() => null);
+  const authUser = await getCurrentUser().catch(() => null);
 
-  const user: ArenaUser | null = session?.user
+  const user: ArenaUser | null = authUser
     ? {
-        id: session.user.id,
-        email: session.user.email,
-        name: session.user.name ?? "Player",
-        role: "student",
-        avatar_url: session.user.image ?? null,
-        created_at: session.user.createdAt?.toISOString() ?? new Date().toISOString(),
+        id: authUser.id,
+        email: authUser.email,
+        name: authUser.name,
+        role: authUser.role,
+        avatar_url: authUser.avatar_url,
+        created_at: authUser.createdAt.toISOString(),
       }
     : null;
 

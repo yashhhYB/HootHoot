@@ -9,8 +9,14 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
-  // Avoid running during local dev (Aurora VPC not reachable from sandbox)
-  if (process.env.VERCEL !== "1" && process.env.RUN_MIGRATION !== "true") return;
+  // Aurora connects via IAM — check for the host variable instead of a
+  // connection string. Skip only when explicitly disabled.
+  const hasDb =
+    !!process.env.AWS_APG_PGHOST ||
+    !!process.env.PGHOST ||
+    !!process.env.DATABASE_URL ||
+    !!process.env.POSTGRES_URL;
+  if (!hasDb || process.env.RUN_MIGRATION === "false") return;
 
   try {
     const { withAuroraConnection } = await import("./lib/db-aurora");

@@ -21,6 +21,7 @@ export default function ArenaAuthPage() {
   const [mode, setMode] = useState<Mode>("signin");
   const [role, setRole] = useState<Role>(defaultRole);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     email: "",
@@ -35,6 +36,7 @@ export default function ArenaAuthPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
+    setError(null);
 
     const destination = role === "company" ? "/company" : redirect;
     const endpoint = mode === "signin" ? "/api/auth/signin" : "/api/auth/signup";
@@ -59,7 +61,9 @@ export default function ArenaAuthPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        toast.error(data.error || "Authentication failed");
+        const msg = data.error || "Authentication failed";
+        toast.error(msg);
+        setError(msg);
         setLoading(false);
         return;
       }
@@ -71,7 +75,9 @@ export default function ArenaAuthPage() {
       );
       window.location.href = destination;
     } catch (err) {
-      toast.error("Something went wrong");
+      const msg = "Network error — please try again.";
+      toast.error(msg);
+      setError(msg);
       setLoading(false);
     }
   }
@@ -135,7 +141,8 @@ export default function ArenaAuthPage() {
             {(["signin", "signup"] as Mode[]).map((m) => (
               <button
                 key={m}
-                onClick={() => setMode(m)}
+                type="button"
+                onClick={() => { setMode(m); setError(null); }}
                 className={cn(
                   "flex-1 py-2 text-sm font-medium rounded-md transition-all",
                   mode === m
@@ -202,6 +209,15 @@ export default function ArenaAuthPage() {
               </div>
             )}
 
+            {error && (
+              <p
+                role="alert"
+                className="text-sm text-destructive bg-destructive/10 border border-destructive/30 rounded-md px-3 py-2"
+              >
+                {error}
+              </p>
+            )}
+
             <Button type="submit" className="w-full h-11" disabled={loading}>
               {loading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -217,7 +233,8 @@ export default function ArenaAuthPage() {
         <p className="text-center text-xs text-muted-foreground mt-4">
           {mode === "signin" ? "Don't have an account?" : "Already have an account?"}{" "}
           <button
-            onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
+            type="button"
+            onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(null); }}
             className="text-foreground underline underline-offset-4 hover:text-primary"
           >
             {mode === "signin" ? "Sign up" : "Sign in"}

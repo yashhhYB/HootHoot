@@ -1,23 +1,14 @@
-import { auth } from "@/lib/auth"
-import { headers } from "next/headers"
+import { getCurrentUser } from "@/lib/auth-core"
 import { redirect } from "next/navigation"
-import HlsVideo from "@/components/common/HlsVideo"
 
 export default async function AuthLayout({
    children,
 }: Readonly<{
    children: React.ReactNode;
 }>) {
-   try {
-      const session = await auth.api.getSession({
-         headers: await headers()
-      })
-
-      if (session) {
-         return redirect("/")
-      }
-   } catch {
-      // DB unreachable — skip redirect, show auth page as guest
+   const user = await getCurrentUser().catch(() => null)
+   if (user) {
+      redirect("/")
    }
    return (
       <main className="relative h-screen">

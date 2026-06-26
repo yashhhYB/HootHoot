@@ -6,7 +6,7 @@ import StartScreen from "./StartScreen";
 import QuizScreen from "./QuizScreen";
 import ResultScreen from "./ResultScreen";
 import { AnimatePresence, motion } from "framer-motion";
-import { authClient } from "@/lib/auth-client";
+import { useSession } from "@/context/SessionContext";
 import { Loader2, LockKeyhole } from "lucide-react";
 import Link from "next/link";
 import { Button } from "../ui/button";
@@ -17,7 +17,7 @@ export default function IQTestContainer() {
     const [viewState, setViewState] = useState<ViewState>('start');
     const [results, setResults] = useState<any>(null);
 
-    const { data: session, isPending } = authClient.useSession();
+    const { user: session, loading: isPending } = useSession();
 
     const handleStart = () => {
         setViewState('playing');
@@ -57,12 +57,12 @@ export default function IQTestContainer() {
                     </div>
 
                     <div className="pt-4 flex justify-center gap-4">
-                        <Link href="/login">
+                        <Link href="/arena/auth">
                             <Button size="lg" className="w-full sm:w-auto px-8">
                                 Sign In
                             </Button>
                         </Link>
-                        <Link href="/register">
+                        <Link href="/arena/auth?mode=signup">
                             <Button variant="outline" size="lg" className="w-full sm:w-auto px-8">
                                 Create Account
                             </Button>

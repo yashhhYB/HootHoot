@@ -1,23 +1,22 @@
-import { auth } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/auth-core";
 import { db } from "@/lib/db";
 import { gameScores } from "@/lib/schema";
 import { eq, desc } from "drizzle-orm";
-import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 
 export const GET = async () => {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
+    const user = await getCurrentUser();
 
-    if (!session) {
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const scores = await db
       .select()
       .from(gameScores)
-      .where(eq(gameScores.userId, session.user.id))
+      .where(eq(gameScores.userId, user.id))
       .orderBy(desc(gameScores.score))
       .limit(10);
 
@@ -30,9 +29,9 @@ export const GET = async () => {
 
 export const POST = async (req: Request) => {
   try {
-    const session = await auth.api.getSession({ headers: await headers() });
+    const user = await getCurrentUser();
 
-    if (!session) {
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -45,7 +44,7 @@ export const POST = async (req: Request) => {
 
     const [newScore] = await db
       .insert(gameScores)
-      .values({ id: randomUUID(), userId: session.user.id, gameId, score })
+      .values({ id: randomUUID(), userId: user.id, gameId, score })
       .returning();
 
     return NextResponse.json(newScore);

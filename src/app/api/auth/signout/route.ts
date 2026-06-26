@@ -1,23 +1,23 @@
-import { signOutUser } from "@/lib/simple-auth";
 import { NextRequest, NextResponse } from "next/server";
+import { SESSION_COOKIE, signOutByToken, clearSessionCookie } from "@/lib/auth-core";
 
-export async function POST(request: NextRequest) {
+async function handleSignOut(request: NextRequest) {
   try {
-    const token = request.cookies.get("auth-token")?.value;
-
-    if (token) {
-      await signOutUser(token);
-    }
-
-    const response = NextResponse.json({ success: true });
-    response.cookies.delete("auth-token");
-
-    return response;
+    const token = request.cookies.get(SESSION_COOKIE)?.value;
+    await signOutByToken(token);
+    await clearSessionCookie();
+    return NextResponse.json({ success: true });
   } catch (err) {
     console.error("[api/auth/signout] Error:", err);
-    return NextResponse.json(
-      { error: "Failed to sign out" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to sign out" }, { status: 500 });
   }
+}
+
+// Support both POST (programmatic) and GET (simple link navigation)
+export async function POST(request: NextRequest) {
+  return handleSignOut(request);
+}
+
+export async function GET(request: NextRequest) {
+  return handleSignOut(request);
 }

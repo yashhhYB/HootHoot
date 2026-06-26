@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { siteConfig } from "@/config/site";
 import { SessionProvider } from "@/context/SessionContext";
+import { Toaster } from "sonner";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteConfig.url),
@@ -47,6 +48,7 @@ export default function RootLayout({
       <body className="relative" suppressHydrationWarning>
         <SessionProvider>
           <main>{children}</main>
+          <Toaster position="top-center" richColors closeButton theme="dark" />
         </SessionProvider>
       </body>
     </html>

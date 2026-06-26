@@ -12,9 +12,12 @@ import { auroraQuery, withAuroraConnection } from "@/lib/db-aurora";
 import { FULL_SCHEMA_SQL } from "./_schema";
 
 const ALL_TABLE_NAMES = [
-  "user", "session", "account", "verification",
-  "game_score", "game_attempt", "poll", "poll_option",
-  "user_streak", "broadcast", "broadcast_recipient", "subscription",
+  // Auth (the only auth system)
+  "app_users", "user_sessions",
+  // Game features
+  "game_score", "game_attempt", "user_streak",
+  "poll", "poll_option", "broadcast", "broadcast_recipient",
+  // Arena / company
   "companies", "practice_attempts", "company_tests",
   "test_sessions", "warning_logs", "arena_questions",
 ];

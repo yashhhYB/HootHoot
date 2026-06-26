@@ -1,25 +1,26 @@
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
+import { getCurrentUser } from "@/lib/auth-core";
 import { UserProvider } from "@/context/UserContext";
 import Footer from "@/components/common/Footer";
 import Header from "@/components/common/Header";
+import type { User } from "@/types/user";
 
 export default async function GamesLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  let user: any = null;
-
-  try {
-    const session = await auth.api.getSession({ headers: await headers() });
-    user = session?.user ?? null;
-  } catch (error) {
-    if (error instanceof Error && ((error as any).digest === "DYNAMIC_SERVER_USAGE" || error.message?.includes("Dynamic server usage"))) {
-      throw error;
-    }
-    // DB unreachable — render as guest
-  }
+  const authUser = await getCurrentUser().catch(() => null);
+  const user: User | null = authUser
+    ? {
+        id: authUser.id,
+        name: authUser.name,
+        email: authUser.email,
+        emailVerified: true,
+        image: authUser.avatar_url,
+        createdAt: authUser.createdAt,
+        updatedAt: authUser.updatedAt,
+      }
+    : null;
 
   return (
     <UserProvider user={user} streak={{ currentStreak: 0, longestStreak: 0 }}>

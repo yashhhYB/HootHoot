@@ -7,7 +7,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { usePathname } from "next/navigation";
 import { useUser } from "@/context/UserContext";
 import { Button } from "../ui/button";
-import { LogOut, Zap, Building2 } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import {
   DropdownMenu,
@@ -18,7 +18,6 @@ import {
 } from "../ui/dropdown-menu";
 import { signOut } from "@/features/auth/actions";
 import { cn } from "@/lib/utils";
-import { GitHubStarsButton } from "@/components/ui/shadcn-io/github-stars-button";
 
 // Simple hamburger icon with CSS transitions
 function HamburgerIcon({ open }: { open: boolean }) {
@@ -132,13 +131,12 @@ function Navbar() {
                     isActive
                       ? "text-foreground bg-white/10"
                       : "text-foreground/60 hover:text-foreground hover:bg-white/5",
-                    isArena && !isActive && "text-purple-400/80 hover:text-purple-300 hover:bg-purple-500/10",
+                    isArena && !isActive && "hover:text-purple-300 hover:bg-purple-500/10",
                     isArena && isActive && "text-purple-300 bg-purple-500/15",
                     isCompany && !isActive && "text-foreground/60 hover:text-foreground hover:bg-white/5"
                   )}
+                  style={isArena && !isActive ? { color: "#d8cce4" } : undefined}
                 >
-                  {isArena && <Zap className="w-3.5 h-3.5" />}
-                  {isCompany && <Building2 className="w-3.5 h-3.5" />}
                   {item.label}
                 </Link>
               );
@@ -220,23 +218,14 @@ function Navbar() {
                     )}
                   >
                     {isActive && <span className="w-1 h-4 bg-foreground rounded-full shrink-0" />}
-                    {!isActive && isArena && <Zap className="w-4 h-4 shrink-0" />}
-                    {!isActive && isCompany && <Building2 className="w-4 h-4 shrink-0" />}
-                    {!isActive && !isArena && !isCompany && <span className="w-4 h-4 shrink-0" />}
                     <span>{item.label}</span>
                   </Link>
                 );
               })}
             </nav>
 
-            {/* Divider + GitHub stars */}
+            {/* Divider + user profile */}
             <div className="px-4 pb-4 pt-1 border-t border-border/40 flex flex-col gap-6">
-              <GitHubStarsButton
-                username="NishulDhakar"
-                repo="BlyncWeb"
-                className="w-full justify-center"
-              />
-
               {user && (
                 <div className="flex items-center gap-3 px-1">
                   <Avatar className="h-8 w-8 border border-border/40 shrink-0">

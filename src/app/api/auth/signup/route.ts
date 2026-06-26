@@ -1,5 +1,5 @@
-import { signUpUser } from "@/lib/simple-auth";
 import { NextRequest, NextResponse } from "next/server";
+import { signUp, setSessionCookie } from "@/lib/auth-core";
 
 export async function POST(request: NextRequest) {
   try {
@@ -7,37 +7,35 @@ export async function POST(request: NextRequest) {
     const { email, password, name, userType, companyName } = body;
 
     if (!email || !password || !name) {
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    const result = await signUpUser(email, password, name, userType, companyName);
+    const role = userType === "company" ? "company" : "student";
+    const { user, token } = await signUp({ email, password, name, role, companyName });
+    await setSessionCookie(token);
 
-    if ("error" in result) {
-      return NextResponse.json({ error: result.error }, { status: 400 });
-    }
-
-    const response = NextResponse.json(
-      { user: result.user, token: result.token },
+    return NextResponse.json(
+      {
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          userType: user.role,
+          avatar_url: user.avatar_url,
+          createdAt: user.createdAt,
+        },
+      },
       { status: 201 }
     );
-
-    // Set token as HttpOnly cookie
-    response.cookies.set("auth-token", result.token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 30 * 24 * 60 * 60, // 30 days
-    });
-
-    return response;
   } catch (err) {
-    console.error("[api/auth/signup] Error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    const message = err instanceof Error ? err.message : "Internal server error";
+    console.error("[api/auth/signup] Error:", message);
+    // Known validation errors → 400; everything else → 500
+    const isValidation =
+      message.includes("already exists") ||
+      message.includes("required") ||
+      message.includes("at least");
+    return NextResponse.json({ error: message }, { status: isValidation ? 400 : 500 });
   }
 }

@@ -1,79 +1,114 @@
 /**
- * db.ts — Drizzle ORM client backed by AWS Aurora PostgreSQL.
+ * db.ts — PostgreSQL connection pool.
  *
- * Credentials strategy:
- * - On Vercel runtime: awsCredentialsProvider uses the injected OIDC token.
- * - In v0 sandbox / local dev: VERCEL_OIDC_TOKEN in .env.development.local.
+ * Production (Vercel): AWS Aurora PostgreSQL via IAM auth (RDS Signer).
+ *   Env vars: AWS_APG_PGHOST, AWS_APG_AWS_REGION, AWS_APG_AWS_ROLE_ARN,
+ *             AWS_APG_PGUSER, AWS_APG_PGDATABASE
  *
- * CRITICAL: credentials and signer MUST be built inside the `password` callback
- * so they are created fresh on every connection attempt — not once at module
- * load. The OIDC token in .env.development.local expires quickly; stale tokens
- * cause "Connection terminated due to connection timeout" 500 errors.
+ * Local dev: Falls back to the Neon connection string (DATABASE_URL /
+ *   POSTGRES_URL) when the Aurora host is not set, so development works
+ *   without VPN access to the Aurora VPC.
+ *
+ * All app code queries through:
+ *   db         — Drizzle ORM client (schema-typed queries)
+ *   auroraPool — raw pg Pool (re-exported to db-aurora.ts for lightweight helpers)
  */
+import { Pool, type ClientBase } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { Pool } from "pg";
-import { Signer } from "@aws-sdk/rds-signer";
-import { fromWebToken } from "@aws-sdk/credential-providers";
-import { awsCredentialsProvider } from "@vercel/functions/oidc";
 import { attachDatabasePool } from "@vercel/functions";
 import * as schema from "./schema";
 
-/** Build a fresh credentials provider every time — reads VERCEL_OIDC_TOKEN from
- *  process.env at call time so hot-reloads and token refreshes work correctly. */
-function buildCredentials() {
-  const token = process.env.VERCEL_OIDC_TOKEN;
-  if (token) {
-    return fromWebToken({
-      roleArn: process.env.AWS_ROLE_ARN!,
-      webIdentityToken: token,
-      clientConfig: { region: process.env.AWS_REGION },
-    });
-  }
-  // On Vercel production/preview runtime — token is injected by the platform
-  return awsCredentialsProvider({
-    roleArn: process.env.AWS_ROLE_ARN!,
-    clientConfig: { region: process.env.AWS_REGION },
-  });
-}
+// ── Detect which backend is available ────────────────────────────────────────
+const auroraHost =
+  process.env.AWS_APG_PGHOST ?? process.env.PGHOST ?? "";
 
-/** Returns a fresh IAM auth token for every new pg connection. */
-async function getPassword(): Promise<string> {
-  const signer = new Signer({
-    credentials: buildCredentials(),   // fresh credentials each call
-    region: process.env.AWS_REGION!,
-    hostname: process.env.PGHOST!,
-    username: process.env.PGUSER ?? "postgres",
-    port: 5432,
-  });
-  return signer.getAuthToken();
-}
+const neonConnStr =
+  process.env.DATABASE_URL ??
+  process.env.POSTGRES_URL ??
+  process.env.DATABASE_URL_UNPOOLED ??
+  process.env.POSTGRES_URL_NON_POOLING ??
+  "";
 
-// Singleton pool — safe across hot-reloads in dev and serverless cold-starts
+const useAurora = !!auroraHost;
+
+// ── Build the pool ────────────────────────────────────────────────────────────
 declare global {
   // eslint-disable-next-line no-var
-  var _auroraPool: Pool | undefined;
+  var _dbPool: Pool | undefined;
 }
 
-const pool =
-  global._auroraPool ??
-  new Pool({
-    host: process.env.PGHOST,
-    database: process.env.PGDATABASE ?? "postgres",
-    port: 5432,
-    user: process.env.PGUSER ?? "postgres",
-    password: getPassword,   // called fresh on every new connection
+function buildPool(): Pool {
+  if (useAurora) {
+    // Lazy-require so the RDS Signer is never imported when running on Neon
+    // (avoids the OIDC credential fetch failing in non-Vercel environments).
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { Signer } = require("@aws-sdk/rds-signer") as typeof import("@aws-sdk/rds-signer");
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { awsCredentialsProvider } = require("@vercel/functions/oidc") as typeof import("@vercel/functions/oidc");
+
+    const region  = process.env.AWS_APG_AWS_REGION  ?? process.env.AWS_REGION  ?? "us-east-1";
+    const roleArn = process.env.AWS_APG_AWS_ROLE_ARN ?? process.env.AWS_ROLE_ARN ?? "";
+    const user     = process.env.AWS_APG_PGUSER     ?? process.env.PGUSER     ?? "postgres";
+    const database = process.env.AWS_APG_PGDATABASE ?? process.env.PGDATABASE ?? "postgres";
+
+    if (!roleArn) {
+      console.error("[db] AWS_APG_AWS_ROLE_ARN not set — IAM auth will fail on Aurora.");
+    }
+
+    const signer = new Signer({
+      credentials: awsCredentialsProvider({
+        roleArn,
+        clientConfig: { region },
+      }),
+      region,
+      hostname: auroraHost,
+      username: user,
+      port: 5432,
+    });
+
+    console.log("[db] Using AWS Aurora PostgreSQL (IAM auth) —", auroraHost);
+
+    return new Pool({
+      host: auroraHost,
+      database,
+      port: 5432,
+      user,
+      // RDS Signer tokens are valid for 15 min; the pool refreshes them per
+      // new connection, so long-lived pools stay authenticated automatically.
+      password: () => signer.getAuthToken(),
+      ssl: { rejectUnauthorized: false },
+      max: 10,
+      idleTimeoutMillis: 30_000,
+      connectionTimeoutMillis: 15_000,
+    });
+  }
+
+  // ── Neon / connection-string fallback (local dev) ──────────────────────────
+  if (!neonConnStr) {
+    console.error("[db] No database connection available. Set AWS_APG_PGHOST (Aurora) or DATABASE_URL (Neon).");
+  } else {
+    console.log("[db] Using Neon PostgreSQL (connection string) — local dev mode.");
+  }
+
+  return new Pool({
+    connectionString: neonConnStr,
     ssl: { rejectUnauthorized: false },
     max: 10,
     idleTimeoutMillis: 30_000,
-    connectionTimeoutMillis: 8_000,
+    connectionTimeoutMillis: 10_000,
   });
+}
+
+const pool = global._dbPool ?? buildPool();
 
 if (process.env.NODE_ENV !== "production") {
-  global._auroraPool = pool;
+  global._dbPool = pool;
 }
 
 attachDatabasePool(pool);
 
+// Drizzle ORM client
 export const db = drizzle(pool, { schema });
-// Export the raw pool so auth.ts can pass it directly to Better Auth
+
+// Raw pool re-exported to db-aurora.ts
 export { pool as auroraPool };

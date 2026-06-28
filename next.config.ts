@@ -7,8 +7,8 @@ const nextConfig: NextConfig = {
 
   images: {
     remotePatterns: [
-      { protocol: "https", hostname: "games.nishul.dev" },
-      { protocol: "https", hostname: "www.nishul.dev" },
+      { protocol: "https", hostname: "hoot-hoot.com" },
+      { protocol: "https", hostname: "www.hoot-hoot.com" },
       // Avatar images from Google OAuth
       { protocol: "https", hostname: "lh3.googleusercontent.com" },
     ],

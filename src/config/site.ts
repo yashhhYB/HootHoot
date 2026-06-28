@@ -59,11 +59,11 @@ export const siteConfig = {
     "grid challenge test"
   ],
   links: {
-    twitter: "https://twitter.com/nishuldhakar",
-    github: "https://github.com/NishulDhakar/BlyncWeb",
-    instagram: "https://instagram.com/blyncgames",
+    twitter: "https://twitter.com/yashbodade",
+    github: "https://github.com/yashbodade/HootHoot",
+    instagram: "https://instagram.com/yashbodade",
   },
-  creator: "@nishuldhakar",
+  creator: "@yashbodade",
   locale: "en_IN",
   adsenseId: "ca-pub-6271827630758167",
   analyticsId: "G-2WMDWXGJK7",

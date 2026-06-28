@@ -20,27 +20,27 @@ export async function sendWelcomeEmail(to: string, name: string) {
 
   const text = `Hey ${firstName}!
 
-Welcome to Blync — the place to sharpen your aptitude for Capgemini and Cognizant placements.
+Welcome to Hoot-Hoot — the place to sharpen your aptitude for Capgemini and Cognizant placements.
 
 You're all set. Jump in and start playing:
-https://www.cognitivegames.me/games/cognitive
+https://hoot-hoot.com/games/cognitive
 
-If you enjoy it, a GitHub star means the world — Blync is fully open source:
-https://github.com/NishulDhakar/BlyncWeb
+If you enjoy it, a GitHub star means the world — Hoot-Hoot is fully open source:
+https://github.com/yashbodade/HootHoot
 
 Stay updated with new games and features:
-X (Twitter)  → https://x.com/NishulDhakar
-LinkedIn     → https://www.linkedin.com/in/nishuldhakar/
+X (Twitter)  → https://x.com/yashbodade
+LinkedIn     → https://www.linkedin.com/in/yashbodade/
 
 Good luck on your placement!
 
-— Nishul
-Blync · cognitivegames.me`;
+— Yash
+Hoot-Hoot · hoot-hoot.com`;
 
   await transporter.sendMail({
-    from: `"Blync" <${process.env.SMTP_USER}>`,
+    from: `"Hoot-Hoot" <${process.env.SMTP_USER}>`,
     to,
-    subject: 'Welcome to Blync 👋',
+    subject: 'Welcome to Hoot-Hoot!',
     text,
   });
 }

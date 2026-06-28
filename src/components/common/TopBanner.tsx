@@ -19,7 +19,7 @@ export default function TopBanner() {
                            hover:bg-zinc-100 hover:text-black hover:shadow-md 
                            dark:border-zinc-200 dark:bg-white dark:text-black dark:hover:bg-zinc-100"
         onClick={() =>
-          window.open("https://placementprep.nishul.dev", "_blank")
+          window.open("https://hoot-hoot.com/arena", "_blank")
         }
       >
         Join Now

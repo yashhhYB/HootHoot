@@ -24,7 +24,7 @@ export async function getLeaderboard(gameId?: string): Promise<LeaderboardEntry[
         COUNT(DISTINCT gs.game_id)::integer as "gamesPlayed",
         ROUND(COALESCE(AVG(gs.score), 0)::numeric, 2)::float as "avgScore"
       FROM app_users u
-      LEFT JOIN game_scores gs ON u.id = gs.user_id
+      LEFT JOIN game_score gs ON u.id = gs.user_id
     `;
 
     const params: unknown[] = [];
@@ -41,7 +41,7 @@ export async function getLeaderboard(gameId?: string): Promise<LeaderboardEntry[
           COUNT(DISTINCT gs.game_id)::integer as "gamesPlayed",
           ROUND(AVG(gs.score)::numeric, 2)::float as "avgScore"
         FROM app_users u
-        LEFT JOIN game_scores gs ON u.id = gs.user_id AND gs.game_id = $1
+        LEFT JOIN game_score gs ON u.id = gs.user_id AND gs.game_id = $1
         GROUP BY u.id, u.name, u.user_type
         ORDER BY "totalScore" DESC NULLS LAST
         LIMIT 50

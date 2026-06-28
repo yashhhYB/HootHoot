@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auroraPool } from '@/lib/db';
-import { randomUUID } from 'crypto';
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,7 +22,7 @@ export async function POST(request: NextRequest) {
 
     // Verify token and get user ID
     const sessionResult = await auroraPool.query(
-      `SELECT user_id FROM sessions WHERE token = $1 AND expires_at > NOW()`,
+      `SELECT "userId" FROM session WHERE token = $1 AND "expiresAt" > NOW()`,
       [token]
     );
 
@@ -34,13 +33,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const userId = sessionResult.rows[0].user_id;
+    const userId = sessionResult.rows[0].userId;
 
     // Save the game score
     await auroraPool.query(
-      `INSERT INTO game_scores (id, user_id, game_id, score, created_at)
+      `INSERT INTO game_score (id, "userId", "gameId", score, "createdAt")
        VALUES ($1, $2, $3, $4, NOW())`,
-      [randomUUID(), userId, gameId, score]
+      [Math.random().toString(36).substring(2, 15), userId, gameId, score]
     );
 
     return NextResponse.json({ success: true });

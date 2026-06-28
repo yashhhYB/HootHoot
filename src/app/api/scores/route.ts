@@ -3,18 +3,18 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 
-export const GET = async () => {
+export const GET = async (req: Request) => {
   try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get("auth-token")?.value;
-
-    if (!token) {
+    const authHeader = req.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const token = authHeader.slice(7);
+
     // Get user from session
     const sessionResult = await auroraPool.query(
-      `SELECT user_id FROM sessions WHERE token = $1 AND expires_at > NOW()`,
+      `SELECT "userId" FROM session WHERE token = $1 AND "expiresAt" > NOW()`,
       [token]
     );
 
@@ -22,11 +22,11 @@ export const GET = async () => {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const userId = sessionResult.rows[0].user_id;
+    const userId = sessionResult.rows[0].userId;
 
     // Get user's scores
     const scores = await auroraPool.query(
-      `SELECT * FROM game_scores WHERE user_id = $1 ORDER BY score DESC LIMIT 10`,
+      `SELECT * FROM game_score WHERE "userId" = $1 ORDER BY score DESC LIMIT 10`,
       [userId]
     );
 
@@ -65,7 +65,7 @@ export const POST = async (req: Request) => {
     }
 
     const newScore = await auroraPool.query(
-      `INSERT INTO game_scores (id, user_id, game_id, score, created_at)
+      `INSERT INTO game_score (id, user_id, game_id, score, created_at)
        VALUES ($1, $2, $3, $4, NOW())
        RETURNING *`,
       [randomUUID(), userId, gameId, score]

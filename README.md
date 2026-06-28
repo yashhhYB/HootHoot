@@ -40,9 +40,9 @@
 | **Language** | TypeScript | Fully typed codebase for maximum reliability. |
 | **Styling** | Tailwind CSS 4 + shadcn/ui | Utility-first CSS and unstyled accessible components. |
 | **Animation** | Framer Motion | Fluid, physics-based UI animations. |
-| **Auth** | Better Auth | Modern, secure authentication with Google OAuth integration. |
-| **Database** | PostgreSQL + Supabase | Scalable relational database. |
-| **ORM** | Prisma | Type-safe database client and migrations. |
+| **Auth** | Simple Auth (Custom) | Secure email/password authentication with PostgreSQL sessions. No external dependencies. |
+| **Database** | AWS Aurora PostgreSQL | Serverless relational database with IAM authentication. |
+| **AWS** | @aws-sdk/rds-signer, IAM | Zero-trust infrastructure with dynamic token generation. |
 | **AI Integration**| Google Gemini | Core AI engine for dynamic capabilities. |
 
 ## • Quick Start
@@ -64,13 +64,18 @@ pnpm install
 ```bash
 cp .env.example .env
 ```
-> **Note:** You will need to populate `.env` with your Supabase credentials, Better Auth secrets, Google OAuth keys, and Gemini API key.
+> **Important:** You will need:
+> - AWS_REGION, AWS_ROLE_ARN, VERCEL_OIDC_TOKEN (AWS Aurora IAM auth)
+> - PGHOST, PGUSER, PGDATABASE (Aurora connection details)
+> - All env vars are auto-injected by the Vercel AWS Integration
 
 ### 4. Setup the database
+Run all migration scripts in order to initialize the schema:
 ```bash
-npx prisma generate
-npx prisma db push
+# The scripts are located in scripts/ directory
+# They create app_users, sessions, game_scores, and other tables
 ```
+See [SETUP.md](SETUP.md) for detailed migration instructions.
 
 ### 5. Start the development server
 ```bash

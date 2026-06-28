@@ -45,9 +45,11 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('[v0] Failed to save score:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('[v0] Failed to save score:', errorMessage);
+    console.error('[v0] Full error:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to save score' },
+      { success: false, error: `Failed to save score: ${errorMessage}` },
       { status: 500 }
     );
   }
